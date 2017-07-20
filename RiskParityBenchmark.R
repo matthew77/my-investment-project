@@ -561,7 +561,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       # 2. calculate the net value start from previous end [including rebalance].
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
-      # ?????????????????????????start here for tomorrow. actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
+      # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
     }
     
     if(cov.changed(ts, end.date)){
