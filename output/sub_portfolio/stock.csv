@@ -1,0 +1,3 @@
+label, weight, volumn, std
+stock|sp500, 0.6, 2000, 0.01
+stock|hs300, 0.4, 1000, 0.01

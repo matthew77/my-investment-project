@@ -1,0 +1,13 @@
+asset_name, weight
+stock, -1
+comm, -1
+bond,-1
+stock|sp500, -1
+stock|hs300, -1
+comm|gold.usd, -1
+comm|comm.usd, -1
+bond|us10y, -1
+bond|us2y, -1
+test|test1|test2|test3, -1
+test|test1|test2, -1
+test|test1, -1
