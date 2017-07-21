@@ -2,10 +2,10 @@ library(BB)
 library(biotools)
 library(xts)
 library(stringr)
-DATA.ROOT <- 'D:\\Nutstore\\Nutstore\\investment\\src\\R\\history data'
-#DATA.ROOT <- 'E:\\nutstore\\?ҵļ?????\\investment\\src\\R\\history data'
-OUTPUT.ROOT <- 'D:\\Nutstore\\Nutstore\\investment\\src\\R\\output'
-#OUTPUT.ROOT <- 'E:\\nutstore\\?ҵļ?????\\investment\\src\\R\\output'
+#DATA.ROOT <- 'D:\\Nutstore\\Nutstore\\investment\\src\\R\\history data'
+DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+#OUTPUT.ROOT <- 'D:\\Nutstore\\Nutstore\\investment\\src\\R\\output'
+OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -510,15 +510,26 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
   # was not correctly constructed. 
   end.date <- as.POSIXct(end.date, tz='GMT')
   hist.days <- index(hist.pf.ts)
+  start.pos <- hist.days[length(hist.days)] #it's a date
   ts.days <- index(current.sub.ts)
-  if (!(hist.days[length(hist.days)] %in% ts.days)) {
+  if (!(start.pos %in% ts.days)) {
     e <- simpleError(paste(hist.days[length(hist.days)], 'is not in local ts file, please update local ts file first and then try again.', sep = ' '))
     stop(e)
   }
   # 2. if end.date is not the last day of current.sub.ts, then an error should be raised. I use this
   # strategy for simplify the process. So each time I run the procedure, the end.date should be set 
   # explicitly so that to make sure the ts data are uptodate.
-  #???????????????? TODO::::
+  if(end.date > ts.days[length(ts.days)]) {
+    e <- simpleError(paste('The end date (', end.date, ') exceeds the ts range(', ts.days[length(ts.days)], ')', sep = ' '))
+    stop(e)
+  }
+  # 3. hist.pf.ts end date should not be later then the end.date
+  if(start.pos > end.date) {
+    e <- simpleError('The end date of the history sub portfolio ts (', start.pos, ') is later than current end date (', end.date, ')')
+    stop(e)
+  }
+  ## loop from hist.pf.ts end to end.date
+  #######TODO::::::::::
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
