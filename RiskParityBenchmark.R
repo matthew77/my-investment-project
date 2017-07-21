@@ -436,6 +436,7 @@ load.sub.pf <- function(lab) {
       filename <- paste(lab, '.csv', sep = '')
       path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '\\')
       sub.pf.value <- read.csv.zoo(filename, format="%Y/%m/%d", tz='GMT')
+      sub.pf.value <- as.xts(sub.pf.value)
       path <- paste(OUTPUT.ROOT, 'sub_portfolio', filename, sep = '\\')
       sub.pf.cfg <- read.csv(path, row.names = 1, sep = ',')
     },
@@ -499,7 +500,7 @@ update.sub.pf.value <- function(label, ts) {
   write.zoo(ts, ts.file, sep = ',')
 } 
 
-calc.rp.pf.value <- function (ts, rp.weights, cov.mtx) {
+calc.rp.pf.value <- function (cfg, netvalue) {
   
 }
 
@@ -558,10 +559,13 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     } else {
       # cfg and net value already saved on disk
       # 1. load sub portfolio ts (previous created).
-      # 2. calculate the net value start from previous end [including rebalance].
+      #       sub.pf$value   sub.pf$cfg
+      # 2. calculate the net value start from previous end [including rebalance], and save to disk
+      # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
+      subpf.netvalue <- calc.rp.pf.value(sub.pf$cfg, sub.pf$value)
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
-      # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
+      
     }
     
     if(cov.changed(ts, end.date)){
