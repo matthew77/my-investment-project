@@ -12,10 +12,10 @@ TRADING.DAYS=252
 COV.COMP.THRESHOLD=1-0.95  #95%
 INIT.PORTFOLIO.MONEY=100000
 
-DATA.FILES <- new.env()
-assign('COMM', paste(DATA.ROOT, sep = '\\', 'benchMarkCOMM.csv'))
-assign('SH50', paste(DATA.ROOT, sep = '\\', 'benchMarkSH50.csv'))
-assign('CYB', paste(DATA.ROOT, sep = '\\', 'benchMarkCYB.csv'))
+#DATA.FILES <- new.env()
+#assign('COMM', paste(DATA.ROOT, sep = '\\', 'benchMarkCOMM.csv'))
+#assign('SH50', paste(DATA.ROOT, sep = '\\', 'benchMarkSH50.csv'))
+#assign('CYB', paste(DATA.ROOT, sep = '\\', 'benchMarkCYB.csv'))
 
 findCovMat <- function(return_matrix) {
   meanv <- apply(return_matrix,2,mean)
@@ -500,8 +500,25 @@ update.sub.pf.value <- function(label, ts) {
   write.zoo(ts, ts.file, sep = ',')
 } 
 
-calc.rp.pf.value <- function (cfg, netvalue) {
-  
+calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
+  # current.sub.ts -- contains the ts of each sub asset which consist hist.pf.ts.
+  # hist.pf.ts -- history net value of current level (a level higher then current.sub.ts) ts.
+  # cfg -- current level portfolio config info including: weight, volumn, std
+  # end.date -- the end date for construting the current level ts. 
+  ## First check the validities of the input data:
+  # 1. the last date of hist.pf.ts should be in current.sub.ts, or the current.sub.ts 
+  # was not correctly constructed. 
+  end.date <- as.POSIXct(end.date, tz='GMT')
+  hist.days <- index(hist.pf.ts)
+  ts.days <- index(current.sub.ts)
+  if (!(hist.days[length(hist.days)] %in% ts.days)) {
+    e <- simpleError(paste(hist.days[length(hist.days)], 'is not in local ts file, please update local ts file first and then try again.', sep = ' '))
+    stop(e)
+  }
+  # 2. if end.date is not the last day of current.sub.ts, then an error should be raised. I use this
+  # strategy for simplify the process. So each time I run the procedure, the end.date should be set 
+  # explicitly so that to make sure the ts data are uptodate.
+  #???????????????? TODO::::
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
@@ -527,6 +544,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     labs <- get.sub.lables(lab)
     ts <- NULL
     w <- c()
+    ### construct the ts matrix from sub portfolios. e.g. stock including china stock, us stock etc.
     for (sublab in labs) {
       convert.from <- get.sub.lables(sublab)
       ############## recursive call
@@ -544,7 +562,8 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       # combine the weights of sub items, and they will be updated when optim is done
       w <- append(w, tmp$w)
     }
-    
+    colnames(ts) <- labs
+    ### use the sub portfolio ts matrix to construct the current level portfolio net value. 
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
       # it's the first time run for this sub portfolio, so should initialized this portfolio
@@ -554,19 +573,19 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       #it's easy to understand the net value of the sub portfolio will just equal the intial 
       #money invested in the sub portfolio. 
       tmp.date <- as.Date(end.date, tz='GMT')
-      tmp.zoo <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
-      update.sub.pf.value(lab, as.xts(tmp.zoo))  #save sub portfolio net value to disk 
+      sub.pf.ts <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
     } else {
       # cfg and net value already saved on disk
       # 1. load sub portfolio ts (previous created).
       #       sub.pf$value   sub.pf$cfg
       # 2. calculate the net value start from previous end [including rebalance], and save to disk
       # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
-      subpf.netvalue <- calc.rp.pf.value(sub.pf$cfg, sub.pf$value)
+      sub.pf.ts <- calc.rp.pf.value(sub.pf$cfg, sub.pf$value, end.date)
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
       
     }
+    update.sub.pf.value(lab, as.xts(sub.pf.ts))  #save sub portfolio net value to disk 
     
     if(cov.changed(ts, end.date)){
       # !!! the changed weight can only be used next time of execution!!!
