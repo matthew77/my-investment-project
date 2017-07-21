@@ -518,7 +518,7 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
   # 2. if end.date is not the last day of current.sub.ts, then an error should be raised. I use this
   # strategy for simplify the process. So each time I run the procedure, the end.date should be set 
   # explicitly so that to make sure the ts data are uptodate.
-  #???????????????? TODO::::
+  #???????????????? TODO:::::::::
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
