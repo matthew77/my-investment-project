@@ -533,7 +533,7 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
   start.pos <- start.pos+one.day # should start the process at least one day after the previous run.
   ts.in.range <- current.sub.ts[paste(start.pos, end.date, sep = '/')]
   for(i in nrow(ts.in.range)) {
-    ########TODO
+    ########TODO, to loop through each day
   }
 }
 
