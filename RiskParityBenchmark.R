@@ -529,7 +529,12 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
     stop(e)
   }
   ## loop from hist.pf.ts end to end.date
-  #######TODO::::::::::
+  one.day <- as.difftime(1, units = "days")
+  start.pos <- start.pos+one.day # should start the process at least one day after the previous run.
+  ts.in.range <- current.sub.ts[paste(start.pos, end.date, sep = '/')]
+  for(i in nrow(ts.in.range)) {
+    ########TODO
+  }
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
