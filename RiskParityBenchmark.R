@@ -534,6 +534,7 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
   ts.in.range <- current.sub.ts[paste(start.pos, end.date, sep = '/')]
   for(i in nrow(ts.in.range)) {
     ########TODO, to loop through each day
+    ##############test commit
   }
 }
 
