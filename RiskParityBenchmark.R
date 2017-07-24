@@ -2,10 +2,10 @@ library(BB)
 library(biotools)
 library(xts)
 library(stringr)
-#DATA.ROOT <- 'D:\\Nutstore\\Nutstore\\investment\\src\\R\\history data'
-DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-#OUTPUT.ROOT <- 'D:\\Nutstore\\Nutstore\\investment\\src\\R\\output'
-OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -528,13 +528,29 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
     e <- simpleError('The end date of the history sub portfolio ts (', start.pos, ') is later than current end date (', end.date, ')')
     stop(e)
   }
-  ## loop from hist.pf.ts end to end.date
+  ## loop from hist.pf.ts end to end.date to construct the ts.
   one.day <- as.difftime(1, units = "days")
   start.pos <- start.pos+one.day # should start the process at least one day after the previous run.
   ts.in.range <- current.sub.ts[paste(start.pos, end.date, sep = '/')]
   for(i in nrow(ts.in.range)) {
-    ########TODO, to loop through each day
-    ##############test commit
+    p <- ts.in.range[i]
+    labs <- rownames(cfg) # get the assets' names in this sub portfolio
+    sub.total <- c() #store the value of each asset with names set by labs
+    #calculate the total value of each asset in the sub portfolio
+    for(lab in labs) {
+      #get volumn
+      vol <- cfg[lab, 'volumn']
+      #get price
+      p.asset <- as.numeric(p[,lab])
+      value <- vol*p.asset
+      sub.total <- append(sub.total, value)
+    }
+    names(sub.total) <- labs
+    sub.sum <- sum(sub.total)
+    #TODO:::::
+    #[standard weight1 +/- one std（return）* w1]/ total weight, if the above scope is broken, then rebalance
+    need.rebalance()
+    rebalance()
   }
 }
 
