@@ -457,12 +457,16 @@ load.sub.pf <- function(lab) {
 init.pf <- function(ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='weeks') {
   rts <- get.pre.n.years.rt(ts, end.date, n = hist.window, period=period)
   cov.mtx <- rts$cov
-  rp.weights <- exe.optim(cov.mtx)
-  money <- INIT.PORTFOLIO.MONEY * rp.weights
+  weight <- exe.optim(cov.mtx)
+  money <- INIT.PORTFOLIO.MONEY * weight
   volumn <- money / ts[end.date]
   std <- sqrt(diag(cov.mtx))
-  results <- list(rp.weights, volumn, std, INIT.PORTFOLIO.MONEY)
-  names(results) <- c('w','vol','std', 'net')
+  pf.name <- colnames(rts)
+  #w.low, w.high should not be need during init, because the init cfg will be 
+  #written to the disk immediately.
+  cfg <- data.frame(pf.name, weight, volumn, std, row.names = 1)
+  results <- list(cfg, INIT.PORTFOLIO.MONEY)
+  names(results) <- c('cfg', 'net')
   return(results)
 } 
 
@@ -471,12 +475,17 @@ update.sub.pf.cfg <- function(label, cfg, end.date) {
   #cfg is a list of a list. outter list contains w, volumn, std
   #inner list contains sub assets.
   #end.date is used to log, when renaming file. the format is 2010-06-08
-  w <- cfg$w
-  pf.name <- names(w)
-  weight <- as.numeric(w)
+  pf.name <- rownames(cfg)
+  weight <- as.numeric(cfg$w)
   volumn <- as.numeric(cfg$vol)
   std <- as.numeric(cfg$std)
-  df.cfg <- data.frame(pf.name, weight, volumn, std, row.names = 1)
+  # calculate weight high & low. 
+  #[standard weight1 +/- one std（return）* w1]/ total weight, 
+  #if the above scope is broken, then rebalance
+  w.std <- weight*std
+  w.low <- w - w.std
+  w.high <- w + w.std
+  df.cfg <- data.frame(pf.name, weight, volumn, std, w.low, w.high, row.names = 1)
   # check if file exists, if so rename it
   cfg.file <- paste(OUTPUT.ROOT, 'sub_portfolio', label, sep = '\\')
   cfg.file <- paste(cfg.file, 'csv', sep = '.')
@@ -500,7 +509,35 @@ update.sub.pf.value <- function(label, ts) {
   write.zoo(ts, ts.file, sep = ',')
 } 
 
-calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
+need.normal.rebalance <- function(cfg, current.w){
+  # cfg is a data.frame
+  # current.w is a named vector
+  labs <- rownames(cfg)
+  for(lab in labs){
+    rec <- cfg[lab,]
+    w.low <- rec[,'w.low']
+    w.high <- rec[,'w.high']
+    w <- current.w[lab]
+    if(w>w.high || w<w.low){
+      return(TRUE)
+    }
+  }
+  return(FALSE)
+}
+
+normal.rebalance <- function(cfg, sub.pf.value, current.date.ts) {
+  labs <- rownames(cfg)
+  for(lab in labs) {
+    w <- cfg[lab, 'weight']
+    money <- sub.pf.value * w
+    vol <- money/as.numeric(current.date.ts[, lab])
+    #update the cfg
+    cfg[lab, 'volumn'] <- vol
+  }
+  cfg
+}
+
+calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date) {
   # current.sub.ts -- contains the ts of each sub asset which consist hist.pf.ts.
   # hist.pf.ts -- history net value of current level (a level higher then current.sub.ts) ts.
   # cfg -- current level portfolio config info including: weight, volumn, std
@@ -532,9 +569,10 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
   one.day <- as.difftime(1, units = "days")
   start.pos <- start.pos+one.day # should start the process at least one day after the previous run.
   ts.in.range <- current.sub.ts[paste(start.pos, end.date, sep = '/')]
+  current.pf.ts = NULL
+  labs <- rownames(cfg) # get the assets' names in this sub portfolio
   for(i in nrow(ts.in.range)) {
     p <- ts.in.range[i]
-    labs <- rownames(cfg) # get the assets' names in this sub portfolio
     sub.total <- c() #store the value of each asset with names set by labs
     #calculate the total value of each asset in the sub portfolio
     for(lab in labs) {
@@ -547,11 +585,18 @@ calc.rp.pf.value <- function (current.sub.ts, hist.pf.ts, cfg, end.date) {
     }
     names(sub.total) <- labs
     sub.sum <- sum(sub.total)
-    #TODO:::::
     #[standard weight1 +/- one std（return）* w1]/ total weight, if the above scope is broken, then rebalance
-    need.rebalance()
-    rebalance()
+    if(need.normal.rebalance(cfg, sub.total/sub.sum)){
+      # recalculate the volumn
+      cfg <- normal.rebalance(cfg, sub.sum, p)
+      #update the cfg, and write the update to disk
+      update.sub.pf.cfg(parent.lab, cfg, end.date) 
+    }
+    #store the net value of the sub portfolio into a ts
+    tmp.zoo <- zoo(sub.sum, index(p))
+    current.pf.ts = rbind(current.pf.ts, as.xts(tmp.zoo))
   }
+  ###TODO:::::: combine the history ts and new ts and return. 
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
@@ -601,7 +646,8 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     if(is.null(sub.pf)) {
       # it's the first time run for this sub portfolio, so should initialized this portfolio
       init.param <- init.pf(ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period=period)
-      update.sub.pf.cfg(lab, init.param, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
+      init.cfg <- init.param$cfg
+      update.sub.pf.cfg(lab, init.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
       #as it is the first time run to construct the sub portfolio, e.g. stock sub portfolio
       #it's easy to understand the net value of the sub portfolio will just equal the intial 
       #money invested in the sub portfolio. 
@@ -613,7 +659,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       #       sub.pf$value   sub.pf$cfg
       # 2. calculate the net value start from previous end [including rebalance], and save to disk
       # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
-      sub.pf.ts <- calc.rp.pf.value(sub.pf$cfg, sub.pf$value, end.date)
+      sub.pf.ts <- calc.rp.pf.value(lab, sub.pf$cfg, sub.pf$value, end.date)
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
       

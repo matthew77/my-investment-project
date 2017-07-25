@@ -1,3 +1,3 @@
-label, weight, volumn, std
-stock_sp500, 0.6, 2000, 0.01
-stock_hs300, 0.4, 1000, 0.01
+label, weight, volumn, std, w.low, w.high
+stock_sp500, 0.6, 2000, 0.01, 0.5999, 0.601
+stock_hs300, 0.4, 1000, 0.01, 0.5999, 0.601
