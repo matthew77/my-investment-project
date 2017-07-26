@@ -594,9 +594,10 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
     }
     #store the net value of the sub portfolio into a ts
     tmp.zoo <- zoo(sub.sum, index(p))
-    current.pf.ts = rbind(current.pf.ts, as.xts(tmp.zoo))
+    current.pf.ts = rbind(current.pf.ts, as.xts(tmp.zoo)) #convert to xts to combine. 
   }
-  ###TODO:::::: combine the history ts and new ts and return. 
+  #combine the history ts and new ts and return. 
+  total.pf.ts <- rbind(hist.pf.ts, current.pf.ts)
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
@@ -662,7 +663,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       sub.pf.ts <- calc.rp.pf.value(lab, sub.pf$cfg, sub.pf$value, end.date)
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
-      
+      #####TODO
     }
     update.sub.pf.value(lab, as.xts(sub.pf.ts))  #save sub portfolio net value to disk 
     
