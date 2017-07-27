@@ -2,6 +2,7 @@ library(BB)
 library(biotools)
 library(xts)
 library(stringr)
+#library(futile.logger) #all print() should be replaced with logging.
 DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
 #DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
 OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
@@ -398,10 +399,7 @@ window.by.end.date <- function(ts, end.date, time.window=BIG.ASSET.TIME.WINDOW, 
 }
 
 cov.changed <- function(ts, end.date.pre, end.date.current, time.window=BIG.ASSET.TIME.WINDOW) {
-  # e.g. sub.pf.lab='stock', then should load sp500, hs300 from file.
-  # and compare with the corrent sp500, hs300 ts. 
-  # ts is uptodate, the 2 data window(new and old) just come from this ts
-  # first window uptodate data. 5 years of data. !!!should be return!!!
+  # 
   if(end.date.pre == end.date.current) {
     return(FALSE)
   }
@@ -509,7 +507,7 @@ update.sub.pf.value <- function(label, ts) {
   write.zoo(ts, ts.file, sep = ',')
 } 
 
-need.normal.rebalance <- function(cfg, current.w){
+need.rebalance <- function(cfg, current.w){
   # cfg is a data.frame
   # current.w is a named vector
   labs <- rownames(cfg)
@@ -525,13 +523,17 @@ need.normal.rebalance <- function(cfg, current.w){
   return(FALSE)
 }
 
-normal.rebalance <- function(cfg, sub.pf.value, current.date.ts) {
+rebalance <- function(cfg, sub.pf.value, current.date.ts) {
+  #cfg -- was loaded from file
+  #sub.pf.value -- current money value of the sub portfolio
+  #current.date.ts -- the market prices of different assets on A specifc date.
   labs <- rownames(cfg)
   for(lab in labs) {
     w <- cfg[lab, 'weight']
     money <- sub.pf.value * w
     vol <- money/as.numeric(current.date.ts[, lab])
     #update the cfg
+    print('rebalance on', format(index(current.date.ts)), '--', lab, '[', vol-cfg[lab, 'volumn'], ']')
     cfg[lab, 'volumn'] <- vol
   }
   cfg
@@ -545,7 +547,7 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
   ## First check the validities of the input data:
   # 1. the last date of hist.pf.ts should be in current.sub.ts, or the current.sub.ts 
   # was not correctly constructed. 
-  end.date <- as.POSIXct(end.date, tz='GMT')
+  end.date.obj <- as.POSIXct(end.date, tz='GMT')
   hist.days <- index(hist.pf.ts)
   start.pos <- hist.days[length(hist.days)] #it's a date
   ts.days <- index(current.sub.ts)
@@ -586,9 +588,9 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
     names(sub.total) <- labs
     sub.sum <- sum(sub.total)
     #[standard weight1 +/- one std（return）* w1]/ total weight, if the above scope is broken, then rebalance
-    if(need.normal.rebalance(cfg, sub.total/sub.sum)){
+    if(need.rebalance(cfg, sub.total/sub.sum)){
       # recalculate the volumn
-      cfg <- normal.rebalance(cfg, sub.sum, p)
+      cfg <- rebalance(cfg, sub.sum, p)
       #update the cfg, and write the update to disk
       update.sub.pf.cfg(parent.lab, cfg, end.date) 
     }
@@ -654,32 +656,43 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       #money invested in the sub portfolio. 
       tmp.date <- as.Date(end.date, tz='GMT')
       sub.pf.ts <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
+      sub.pf.ts <- as.xts(sub.pf.ts)
     } else {
       # cfg and net value already saved on disk
       # 1. load sub portfolio ts (previous created).
       #       sub.pf$value   sub.pf$cfg
       # 2. calculate the net value start from previous end [including rebalance], and save to disk
       # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
-      sub.pf.ts <- calc.rp.pf.value(lab, sub.pf$cfg, sub.pf$value, end.date)
+      sub.pf.ts <- calc.rp.pf.value(lab, ts, sub.pf$value, sub.pf$cfg, end.date)
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
-      #####TODO
+      pre.date.list <- index(sub.pf$value)
+      pre.date <- pre.date.list[length(pre.date.list)]
+      # for big category such as bond, stock and commodity, use long term cycle to check the change 
+      # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
+      window <- SUB.ASSET.TIME.WINDOW
+      if (lab == 'root') {
+        window=BIG.ASSET.TIME.WINDOW
+      }
+      if(cov.changed(sub.pf.ts, format(pre.date), end.date, time.window = window)) {
+        # need a rebalance, since the weights of each asset has been changed.
+        rts <- get.pre.n.years.rt(sub.pf.ts, end.date)
+        # run the excel solver like program to get the new weights.
+        cov.mtx <- cov(rts)
+        new.weights <- exe.optim(cov.mtx)
+        #update the new weights in cfg
+        for(sublab in labs) {
+          sub.pf$cfg[sublab, 'weight'] <- new.weights[sublab]
+        }
+        end.date.obj <- index(sub.pf.ts)[length(index(sub.pf.ts))] # for getting the last date of pf.ts and sub ts.
+        new.cfg <- rebalance(sub.pf$cfg, as.numeric(sub.pf.ts[end.date.obj]), ts[end.date.obj])
+        update.sub.pf.cfg(lab, new.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
+      }
     }
-    update.sub.pf.value(lab, as.xts(sub.pf.ts))  #save sub portfolio net value to disk 
+    update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk 
     
-    if(cov.changed(ts, end.date)){
-      # !!! the changed weight can only be used next time of execution!!!
-      # it's understandable that you get the signal that the weight needs to be changed,
-      # but you can only changed the weight start from now, not from previous time run. 
-      # what should be done this time is that to change the portfolio volumn at the end 
-      # of the current time window.
-      rts <- get.pre.n.years.rt(ts, end.date)
-      # run the excel solver like program to get the weight.
-      cov.mtx <- cov(rts)
-      rp.weights <- exe.optim(cov.mtx)
-    } else {
-      rp.weights <- load.sub.pf(lab) #??????????????
-    }
+    #TODO::::: finish the following part. how the sub level rebalance affect the higher level?????
+    
     # update the calculated weights for sub category. initially the sub category weights
     # are set to 1
     w <- override.sub.weights (w, rp.weights)
