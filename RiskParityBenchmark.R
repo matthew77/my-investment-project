@@ -255,20 +255,11 @@ get.normal.rt <- function(prices) {
   normal.rt <- na.omit(normal.rt)
 }
 
-# not sure this function should be valid any more. 
-#get.current.weight<- function (pf) {#?????? should be updated with currency, all should be convert to RMB
-  #pf is a matrix, 1st column is volumn, 2nd column is close prices
-  # rownames are labs for asset
-#  sub.total <- pf[,1]*pf[,2]
-#  total <- sum(sub.total)
-#  sub.total/total
-#} 
-
-output.bchmrk.weights <- function(bchmrk.w.file, w) {
-  # rename previous file name by appending the timestamp. 
-  # create a new file with new weights.
-  write.csv(w, file = bchmrk.w.file)
-}
+#DELETED:::: output.bchmrk.weights <- function(bchmrk.w.file, w) {
+  #DELETED::::  rename previous file name by appending the timestamp. 
+  #DELETED::::  create a new file with new weights.
+#DELETED:::: write.csv(w, file = bchmrk.w.file)
+#DELETED:::: }
 
 load.currt.base.bchmrk.weights <- function(bchmrk.w.file) {
   # load these value from file, without lever. the content format should be:
@@ -589,6 +580,7 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
     sub.sum <- sum(sub.total)
     #[standard weight1 +/- one std（return）* w1]/ total weight, if the above scope is broken, then rebalance
     if(need.rebalance(cfg, sub.total/sub.sum)){
+      print(paste('rebalance happened while processing portfolio :::', parent.lab))
       # recalculate the volumn
       cfg <- rebalance(cfg, sub.sum, p)
       #update the cfg, and write the update to disk
@@ -600,6 +592,30 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
   }
   #combine the history ts and new ts and return. 
   total.pf.ts <- rbind(hist.pf.ts, current.pf.ts)
+}
+
+UpdateCovChangeDate <- function(lab, date.str){
+  cov.date.file <- paste(OUTPUT.ROOT, 'sub_portfolio', 'cov_change.csv', sep = '/')
+  if(!file.exists(cov.date.file)){
+    #TODO:::::::::::::::::
+  }
+}
+
+GetPreCovChangeDate <- function(lab){
+  cov.date.file <- paste(OUTPUT.ROOT, 'sub_portfolio', 'cov_change.csv', sep = '/')
+  tryCatch(
+    {
+      cov.date <- read.csv(cov.date.file, row.names = 1)
+    },
+    error=function(cond){
+      stop(cond)
+    },
+    warning=function(cond) {
+      stop(cond)
+    }
+  )
+  # return a date str
+  cov.date[lab,]
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
@@ -617,9 +633,11 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     ts <- load.all.prices(remove.label.level(lab))
     w <- c(1)
     names(w) <- c(lab)
+    print(paste('      getting leaf asset :::', lab))
     result <- list(ts, w)
     return (result)
   } else {
+    print(paste('constructing the middle/root layer portfolio for :::', lab))
     convert.to <- get.fx.lab(lab)
     # the current lab descendents
     labs <- get.sub.lables(lab)
@@ -674,9 +692,10 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       if (lab == 'root') {
         window=BIG.ASSET.TIME.WINDOW
       }
-      if(cov.changed(sub.pf.ts, format(pre.date), end.date, time.window = window)) {
+      if(cov.changed(ts, format(pre.date), end.date, time.window = window)) {
+        print(paste('covariance matrix has been changed since last time'))
         # need a rebalance, since the weights of each asset has been changed.
-        rts <- get.pre.n.years.rt(sub.pf.ts, end.date)
+        rts <- get.pre.n.years.rt(ts, end.date)
         # run the excel solver like program to get the new weights.
         cov.mtx <- cov(rts)
         new.weights <- exe.optim(cov.mtx)
@@ -689,20 +708,20 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
         update.sub.pf.cfg(lab, new.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
       }
     }
-    update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk 
+    update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
     
     #TODO::::: finish the following part. how the sub level rebalance affect the higher level?????
     
-    # update the calculated weights for sub category. initially the sub category weights
-    # are set to 1
-    w <- override.sub.weights (w, rp.weights)
-    # construt the risk parity sub portfolio net value. 
-    rp.ts <- construct.rp.pf(ts, rp.weights, cov.mtx)
+    #DELETED::::  update the calculated weights for sub category. initially the sub category weights
+    #DELETED::::  are set to 1
+    #DELETED:::: w <- override.sub.weights (w, rp.weights)
+    #DELETED::::  construt the risk parity sub portfolio net value. 
+    #DELETED:::: rp.ts <- construct.rp.pf(ts, rp.weights, cov.mtx)
     
-    #return to the upper level.
-    w.current <- c(1)
-    names(w.current) <- c(lab)
-    w <- append(w, w.current)
+    #DELETED:::: return to the upper level.
+    #DELETED:::: w.current <- c(1)
+    #DELETED:::: names(w.current) <- c(lab)
+    #DELETED:::: w <- append(w, w.current)
     result <- list(ts, w)
     return(result)
   }
