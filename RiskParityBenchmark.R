@@ -724,6 +724,9 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
   return(NULL)
   #TODO:::::: will need to get the detailed asset allocation including weight, volumn, std, w.low, w.high ???
   #what about the 2X lever??????????
+  #I will need a summary of the rebalance details as instructions for my manual portfolio update
+  #it should be all at leaf level. so the middle level rebalance should be converted to 
+  #leaf level. 
 }
 
 ############## MAIN #####################
