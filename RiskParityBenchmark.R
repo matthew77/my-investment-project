@@ -597,7 +597,23 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
 UpdateCovChangeDate <- function(lab, date.str){
   cov.date.file <- paste(OUTPUT.ROOT, 'sub_portfolio', 'cov_change.csv', sep = '/')
   if(!file.exists(cov.date.file)){
-    #TODO:::::::::::::::::
+    # it is the first record in the file, so just create the file and write the single record.
+    rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
+    write.csv(rec, cov.date.file, row.names = FALSE)
+  } else {
+    #rename file to keep the cov change records.
+    cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
+    date.return <- cov.date[date.str, 'date']
+    if (is.na(date.return)) {
+      # this record is new, so just append it into the data.frame.
+      rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
+      cov.date <- rbind(cov.date, rec)
+      write.csv(cov.date, cov.date.file)
+    } else {
+      # update the record 
+      cov.date[date.str, 'date'] <- date.str
+      write.csv(cov.date, cov.date.file)
+    }
   }
 }
 
@@ -605,7 +621,7 @@ GetPreCovChangeDate <- function(lab){
   cov.date.file <- paste(OUTPUT.ROOT, 'sub_portfolio', 'cov_change.csv', sep = '/')
   tryCatch(
     {
-      cov.date <- read.csv(cov.date.file, row.names = 1)
+      cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
     },
     error=function(cond){
       stop(cond)
@@ -615,7 +631,7 @@ GetPreCovChangeDate <- function(lab){
     }
   )
   # return a date str
-  cov.date[lab,]
+  cov.date[lab, 'date']
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
@@ -631,35 +647,29 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     # return price and weight, obviously weight = 1
     # load prices according to  lab and end.date
     ts <- load.all.prices(remove.label.level(lab))
-    w <- c(1)
-    names(w) <- c(lab)
     print(paste('      getting leaf asset :::', lab))
-    result <- list(ts, w)
-    return (result)
+    return (ts)
   } else {
     print(paste('constructing the middle/root layer portfolio for :::', lab))
     convert.to <- get.fx.lab(lab)
     # the current lab descendents
     labs <- get.sub.lables(lab)
     ts <- NULL
-    w <- c()
     ### construct the ts matrix from sub portfolios. e.g. stock including china stock, us stock etc.
     for (sublab in labs) {
       convert.from <- get.sub.lables(sublab)
       ############## recursive call
-      tmp <- allocate.asset.weight(sublab, end.date)
+      tmp.ts <- allocate.asset.weight(sublab, end.date)
       #convert to target currency
       if(convert.from != convert.to) {
-        tmp$ts <- convert.to.target.currency(convert.from, convert.to, tmp$ts)
+        tmp.ts <- convert.to.target.currency(convert.from, convert.to, tmp.ts)
       }
       # combine the different assets' ts in the same category, e.g. stock: sp500, hs300
       if (is.null(ts)) {
-        ts <- tmp$ts
+        ts <- tmp.ts
       } else {
-        ts <- cbind(ts, tmp$ts)
+        ts <- cbind(ts, tmp.ts)
       }
-      # combine the weights of sub items, and they will be updated when optim is done
-      w <- append(w, tmp$w)
     }
     colnames(ts) <- labs
     ### use the sub portfolio ts matrix to construct the current level portfolio net value. 
@@ -684,16 +694,15 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       sub.pf.ts <- calc.rp.pf.value(lab, ts, sub.pf$value, sub.pf$cfg, end.date)
       # 3. check if the cov has been changed, if so, produced the new cfg file 
       #     for the use of next time
-      pre.date.list <- index(sub.pf$value)
-      pre.date <- pre.date.list[length(pre.date.list)]
+      pre.date <- GetPreCovChangeDate(lab)
       # for big category such as bond, stock and commodity, use long term cycle to check the change 
       # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
       window <- SUB.ASSET.TIME.WINDOW
       if (lab == 'root') {
         window=BIG.ASSET.TIME.WINDOW
       }
-      if(cov.changed(ts, format(pre.date), end.date, time.window = window)) {
-        print(paste('covariance matrix has been changed since last time'))
+      if(cov.changed(ts, pre.date, end.date, time.window = window)) {
+        print(paste(lab, '--- covariance matrix has been changed since last time'))
         # need a rebalance, since the weights of each asset has been changed.
         rts <- get.pre.n.years.rt(ts, end.date)
         # run the excel solver like program to get the new weights.
@@ -706,26 +715,15 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
         end.date.obj <- index(sub.pf.ts)[length(index(sub.pf.ts))] # for getting the last date of pf.ts and sub ts.
         new.cfg <- rebalance(sub.pf$cfg, as.numeric(sub.pf.ts[end.date.obj]), ts[end.date.obj])
         update.sub.pf.cfg(lab, new.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
+        UpdateCovChangeDate(lab, end.date)
       }
     }
     update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
-    
-    #TODO::::: finish the following part. how the sub level rebalance affect the higher level?????
-    
-    #DELETED::::  update the calculated weights for sub category. initially the sub category weights
-    #DELETED::::  are set to 1
-    #DELETED:::: w <- override.sub.weights (w, rp.weights)
-    #DELETED::::  construt the risk parity sub portfolio net value. 
-    #DELETED:::: rp.ts <- construct.rp.pf(ts, rp.weights, cov.mtx)
-    
-    #DELETED:::: return to the upper level.
-    #DELETED:::: w.current <- c(1)
-    #DELETED:::: names(w.current) <- c(lab)
-    #DELETED:::: w <- append(w, w.current)
-    result <- list(ts, w)
-    return(result)
+    return(sub.pf.ts)
   }
   return(NULL)
+  #TODO:::::: will need to get the detailed asset allocation including weight, volumn, std, w.low, w.high ???
+  #what about the 2X lever??????????
 }
 
 ############## MAIN #####################
