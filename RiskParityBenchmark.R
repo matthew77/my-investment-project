@@ -719,9 +719,36 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       }
     }
     update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
+    if(lab == 'root') {
+      #TODO: if it's the root, then output the standard asset (leaf) allocation information to disk. 
+      # for fetching the information on demand next time.
+    }
     return(sub.pf.ts)
   }
   return(NULL)
+}
+
+RebalanceSummary <- function(){
+  #list the differences between 2 runs (a week gap usually) there may be a couple of situations:
+  # non-cov-change rebalance -- the base weight of the specific level doesn't change, but some assets 
+  # exceed the weight std. 
+  # cov-change rebalance -- the base weight of the specific level should be changed. 
+  # what should be returned?
+  #   - the new weights if any. Note, if the interim weights changed, the leaf level must be changed as well. 
+  #        the weights changes (delta) e.g. +/- delta(weights)
+  #   - the new volumn as well as the volum changes(delta)
+  #
+  # common function: should return the current live weight % (assets allocation); and benchmark weight %
+  # (assets allocation), this benchmark may be produced some weeks ago. 
+  #
+  # the non-cov-change (base weight) rebalance can happen anytime during the run e.g. from Monday to Saturday. But
+  # the cov-change rebalance can only happen on the run-day (end.date). So the non-cov-change rebalance
+  # cannot match run-day-update-only updation, unless this program are setup to run everyday. But this 
+  # should not be a problem for Benchmark, since benchmark doesn't need to match real life opertion closely
+  # As a benchmark, the non-cov-change rebalance can happen on any single day, and the cov-change rebalance
+  # can only happen on run-day. that's good enough for benchmark. !!!Future modification can be made such as
+  # the non-cov-change can only happen on run-day!!!
+  
   #TODO:::::: will need to get the detailed asset allocation including weight, volumn, std, w.low, w.high ???
   #what about the 2X lever??????????
   #I will need a summary of the rebalance details as instructions for my manual portfolio update
