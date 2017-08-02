@@ -722,11 +722,12 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     if(lab == 'root') {
       #TODO: if it's the root, then output the standard asset (leaf) allocation information to disk. 
       # for fetching the information on demand next time.
+      #
       #TODO: rebalance and cov.change should be at the same level: daily or weekly. the input ts is
       #either daily or weekly. so there is no reason why rebalance will be at the daily level but
       #the cov change is at the run day(weekly level)
       #in future, I will only run the RP at weekend. !!! so the the actually rebalance operation may not 
-      #be sync with system rebalance !!!
+      #be sync with system rebalance !!! [can use weekly ts to circumvent this problem!!!]
     }
     return(sub.pf.ts)
   }
