@@ -261,17 +261,17 @@ get.normal.rt <- function(prices) {
 #DELETED:::: write.csv(w, file = bchmrk.w.file)
 #DELETED:::: }
 
-load.currt.base.bchmrk.weights <- function(bchmrk.w.file) {
+LoadRPPortfolioStructure <- function(bchmrk.w.file) {
   # load these value from file, without lever. the content format should be:
   # return a matrix with rownames equal to the first column
   w <- read.csv(bchmrk.w.file, row.names = 1)
 }
 
 is.leaf.lable <- function(lab) {
-  # search in the weights.csv file to check if current lable has any '_' appended,
+  # search in the structure.csv file to check if current lable has any '_' appended,
   # if so, then it is not a leaf lable.
   # e.g. the input is 'comm_gold.usd'
-  weights.file <- load.currt.base.bchmrk.weights(paste(OUTPUT.ROOT, 'weights.csv', sep = '\\'))
+  weights.file <- LoadRPPortfolioStructure(paste(OUTPUT.ROOT, 'structure.csv', sep = '\\'))
   available.weights.labels <- rownames(weights.file)
   search.str <- paste('^',escape.weight.lable(lab), '_{1}', sep = '')
   #print(search.str)  # log
@@ -295,7 +295,7 @@ escape.weight.lable <- function(lab) {
 get.sub.lables <- function(lab) {
   # the input tag should contains the hirarachy information 
   # e.g. 'test_test1_test2'
-  weights.file <- load.currt.base.bchmrk.weights(paste(OUTPUT.ROOT, 'weights.csv', sep = '\\'))
+  weights.file <- LoadRPPortfolioStructure(paste(OUTPUT.ROOT, 'structure.csv', sep = '\\'))
   available.weights.labels <- rownames(weights.file)
   if(lab=='root') {
     return(grep('^\\w+$', available.weights.labels, value = TRUE))
