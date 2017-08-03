@@ -549,12 +549,12 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
   # 2. if end.date is not the last day of current.sub.ts, then an error should be raised. I use this
   # strategy for simplify the process. So each time I run the procedure, the end.date should be set 
   # explicitly so that to make sure the ts data are uptodate.
-  if(end.date > ts.days[length(ts.days)]) {
+  if(end.date.obj > ts.days[length(ts.days)]) {
     e <- simpleError(paste('The end date (', end.date, ') exceeds the ts range(', ts.days[length(ts.days)], ')', sep = ' '))
     stop(e)
   }
   # 3. hist.pf.ts end date should not be later then the end.date
-  if(start.pos > end.date) {
+  if(start.pos > end.date.obj) {
     e <- simpleError('The end date of the history sub portfolio ts (', start.pos, ') is later than current end date (', end.date, ')')
     stop(e)
   }
@@ -566,6 +566,7 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
   labs <- rownames(cfg) # get the assets' names in this sub portfolio
   for(i in nrow(ts.in.range)) {
     p <- ts.in.range[i]
+    date.obj <- index(p)  # get the date obj for current date.
     sub.total <- c() #store the value of each asset with names set by labs
     #calculate the total value of each asset in the sub portfolio
     for(lab in labs) {
@@ -578,13 +579,40 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
     }
     names(sub.total) <- labs
     sub.sum <- sum(sub.total)
-    #[standard weight1 +/- one std（return）* w1]/ total weight, if the above scope is broken, then rebalance
+    # Normal Rebalance:::::::::
+    # [standard weight1 +/- one std（return）* w1]/ total weight, if the above scope is broken, 
+    # then rebalance.
     if(need.rebalance(cfg, sub.total/sub.sum)){
-      print(paste('rebalance happened while processing portfolio :::', parent.lab))
+      print(paste(parent.lab, ' --- rebalance happened while processing portfolio :::'))
       # recalculate the volumn
       cfg <- rebalance(cfg, sub.sum, p)
       #update the cfg, and write the update to disk
-      update.sub.pf.cfg(parent.lab, cfg, end.date) 
+      update.sub.pf.cfg(parent.lab, cfg, date.obj) 
+    }
+    # COV Change Rebalance:::::::::
+    # check if the cov has been changed, if so, produced the new cfg file 
+    #     for the use of next time
+    pre.date <- GetPreCovChangeDate(parent.lab)
+    # for big category such as bond, stock and commodity, use long term cycle to check the change 
+    # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
+    window <- SUB.ASSET.TIME.WINDOW
+    if (parent.lab == 'root') {
+      window=BIG.ASSET.TIME.WINDOW
+    }
+    if(cov.changed(current.sub.ts, pre.date, format(date.obj), time.window = window)) {
+      print(paste(parent.lab, ' --- covariance matrix has been changed since last time'))
+      # need a rebalance, since the weights of each asset has been changed.
+      rts <- get.pre.n.years.rt(ts, format(date.obj))
+      # run the excel solver like program to get the new weights.
+      new.weights <- exe.optim(rts$cov)
+      #update the new weights in cfg
+      for(lab in labs) {
+        cfg[lab, 'weight'] <- new.weights[lab]
+      }
+      
+      cfg <- rebalance(cfg, sub.sum, p)
+      update.sub.pf.cfg(parent.lab, cfg, date.obj)    #save weight, volumn, std to disk, back up previous cfg if any 
+      UpdateCovChangeDate(parent.lab, format(date.obj))
     }
     #store the net value of the sub portfolio into a ts
     tmp.zoo <- zoo(sub.sum, index(p))
@@ -644,11 +672,9 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
   #     the level goest up. e.g. from sp500 to stock -- from 1 to 0.3.
   # end.date format : 2007-01-07
   if (is.leaf.lable(lab)) {
-    # return price and weight, obviously weight = 1
-    # load prices according to  lab and end.date
-    ts <- load.all.prices(remove.label.level(lab))
+    # load prices according to the lab.
+    sub.pf.ts <- load.all.prices(remove.label.level(lab)) 
     print(paste('      getting leaf asset :::', lab))
-    return (ts)
   } else {
     print(paste('constructing the middle/root layer portfolio for :::', lab))
     convert.to <- get.fx.lab(lab)
@@ -692,46 +718,18 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       # 2. calculate the net value start from previous end [including rebalance], and save to disk
       # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
       sub.pf.ts <- calc.rp.pf.value(lab, ts, sub.pf$value, sub.pf$cfg, end.date)
-      # 3. check if the cov has been changed, if so, produced the new cfg file 
-      #     for the use of next time
-      pre.date <- GetPreCovChangeDate(lab)
-      # for big category such as bond, stock and commodity, use long term cycle to check the change 
-      # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
-      window <- SUB.ASSET.TIME.WINDOW
-      if (lab == 'root') {
-        window=BIG.ASSET.TIME.WINDOW
-      }
-      if(cov.changed(ts, pre.date, end.date, time.window = window)) {
-        print(paste(lab, '--- covariance matrix has been changed since last time'))
-        # need a rebalance, since the weights of each asset has been changed.
-        rts <- get.pre.n.years.rt(ts, end.date)
-        # run the excel solver like program to get the new weights.
-        cov.mtx <- cov(rts)
-        new.weights <- exe.optim(cov.mtx)
-        #update the new weights in cfg
-        for(sublab in labs) {
-          sub.pf$cfg[sublab, 'weight'] <- new.weights[sublab]
-        }
-        end.date.obj <- index(sub.pf.ts)[length(index(sub.pf.ts))] # for getting the last date of pf.ts and sub ts.
-        new.cfg <- rebalance(sub.pf$cfg, as.numeric(sub.pf.ts[end.date.obj]), ts[end.date.obj])
-        update.sub.pf.cfg(lab, new.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
-        UpdateCovChangeDate(lab, end.date)
-      }
     }
     update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
     if(lab == 'root') {
-      #TODO: if it's the root, then output the standard asset (leaf) allocation information to disk. 
-      # for fetching the information on demand next time.
-      #
+      #If it's the root, then output the standard asset (leaf) allocation information to disk. 
       #TODO: rebalance and cov.change should be at the same level: daily or weekly. the input ts is
       #either daily or weekly. so there is no reason why rebalance will be at the daily level but
       #the cov change is at the run day(weekly level)
       #in future, I will only run the RP at weekend. !!! so the the actually rebalance operation may not 
       #be sync with system rebalance !!! [can use weekly ts to circumvent this problem!!!]
     }
-    return(sub.pf.ts)
   }
-  return(NULL)
+  return(sub.pf.ts)
 }
 
 RebalanceSummary <- function(){
