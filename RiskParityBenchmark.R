@@ -665,6 +665,7 @@ CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
       rec[, 'weight'] <- abs.weight
       cfg <- CalcuRPAllocation(sublab, abs.weight, rec)
       # rbind the returns into a data.frame and return to next upper level
+      
     }
   }
 }
