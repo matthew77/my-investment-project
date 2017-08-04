@@ -180,24 +180,9 @@ optim.target <- function (w, cov.mtx) {
   var(risk.contrib)
 }
 
-########## the main procedure ###########
-#every time (at least each weekend), the procedure should be run in order to get the following
-#information:
-#-1. load the previous reference covariance.
-#1. current net value
-#2. current assets weights
-#3. current covariance
-#4. compare current covariance with previous reference covariance, if the covariance has been changed
-#   then the a Total rebalance will be performed.
-#5. TOTAL relalance:
-#   use the new covariance to run the optim.
-#   get the new assets weight
-#   rebalance the assets according to the new weights
-#6. normal rebalance:
-#   each month end, run a normal rebalance. 
-
-load.curt.pf <- function() {
-  path <- paste(OUTPUT.ROOT, sep = '\\', 'portfolio.csv')
+LoadSubPortfolioCfg <- function(label) {
+  path <- paste(OUTPUT.ROOT, 'sub_portfolio', label, sep = '/')
+  path <- paste(path, 'csv', sep = '.')
   pf <- read.csv(path, row.names = 1, sep = ',')
 }
 
@@ -309,13 +294,14 @@ get.sub.lables <- function(lab) {
   return(NULL)
 }
 
-override.sub.weights <- function (w.target, w.source) {
+# should be deleted
+#override.sub.weights <- function (w.target, w.source) {
   #both are named vector
-  for(lab in names(w.source)) {
-    w.target[lab] <- w.source[lab]
-  }
-  w.target
-}
+#  for(lab in names(w.source)) {
+#    w.target[lab] <- w.source[lab]
+#  }
+#  w.target
+#}
 
 convert.to.target.currency <- function(from, to, ts){
   #from/to -- 3 characters for currency e.g. CNH, USD
@@ -662,6 +648,27 @@ GetPreCovChangeDate <- function(lab){
   cov.date[lab, 'date']
 }
 
+#TODO:::::::::::::::
+CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
+  if (is.leaf.lable(lab)) {
+    # get the final allocation weights.
+    
+  } else {
+    # load sub pf file
+    sub.pf <- LoadSubPortfolioCfg(lab)
+    labs <- rownames(sub.pf)
+    for (sublab in labs) {
+      # get the sub pf weight and pass into the next lower level.
+      rec <- sub.pf[sublab, ]
+      relative.weight <- sub.pf[sublab, 'weight']
+      abs.weight <- weight * relative.weight
+      rec[, 'weight'] <- abs.weight
+      cfg <- CalcuRPAllocation(sublab, abs.weight, rec)
+      # rbind the returns into a data.frame and return to next upper level
+    }
+  }
+}
+
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
   # bottom up strategy. first run risk parity in sub category,
   # then up to higher level of the category.
@@ -683,7 +690,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     ts <- NULL
     ### construct the ts matrix from sub portfolios. e.g. stock including china stock, us stock etc.
     for (sublab in labs) {
-      convert.from <- get.sub.lables(sublab)
+      convert.from <- get.fx.lab(sublab)
       ############## recursive call
       tmp.ts <- allocate.asset.weight(sublab, end.date)
       #convert to target currency
@@ -722,11 +729,10 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
     if(lab == 'root') {
       #If it's the root, then output the standard asset (leaf) allocation information to disk. 
-      #TODO: rebalance and cov.change should be at the same level: daily or weekly. the input ts is
-      #either daily or weekly. so there is no reason why rebalance will be at the daily level but
-      #the cov change is at the run day(weekly level)
-      #in future, I will only run the RP at weekend. !!! so the the actually rebalance operation may not 
-      #be sync with system rebalance !!! [can use weekly ts to circumvent this problem!!!]
+      pf.alloc <- CalcuRPAllocation()
+      # compare pf.alloc with the one stored on disk.  use::: all.equal()
+      # if changed, then rename the old one and save the new one.
+      # write.csv()
     }
   }
   return(sub.pf.ts)
