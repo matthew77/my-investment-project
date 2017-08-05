@@ -648,12 +648,12 @@ GetPreCovChangeDate <- function(lab){
   cov.date[lab, 'date']
 }
 
-#TODO:::::::::::::::
 CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
   if (is.leaf.lable(lab)) {
     # get the final allocation weights.
-    
+    alloc.cfg <- rec
   } else {
+    alloc.cfg <- NULL
     # load sub pf file
     sub.pf <- LoadSubPortfolioCfg(lab)
     labs <- rownames(sub.pf)
@@ -663,11 +663,12 @@ CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
       relative.weight <- sub.pf[sublab, 'weight']
       abs.weight <- weight * relative.weight
       rec[, 'weight'] <- abs.weight
-      cfg <- CalcuRPAllocation(sublab, abs.weight, rec)
+      abs.cfg <- CalcuRPAllocation(sublab, abs.weight, rec)  #recursive call.
       # rbind the returns into a data.frame and return to next upper level
-      
+      alloc.cfg <- rbind(alloc.cfg, abs.cfg)
     }
   }
+  return(alloc.cfg)
 }
 
 allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
