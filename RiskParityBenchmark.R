@@ -246,17 +246,28 @@ get.normal.rt <- function(prices) {
 #DELETED:::: write.csv(w, file = bchmrk.w.file)
 #DELETED:::: }
 
-LoadRPPortfolioStructure <- function(bchmrk.w.file) {
+LoadCSVWithLabelAsRowName <- function(bchmrk.w.file) {
   # load these value from file, without lever. the content format should be:
   # return a matrix with rownames equal to the first column
-  w <- read.csv(bchmrk.w.file, row.names = 1)
+  rec <- NULL
+  tryCatch({
+      rec <- read.csv(bchmrk.w.file, row.names = 1, stringsAsFactors = FALSE)
+    },
+    error=function(cond){
+      print(cond)
+    },
+    warning=function(cond){
+      print(cond)
+    }
+  )
+  return(rec)
 }
 
 is.leaf.lable <- function(lab) {
   # search in the structure.csv file to check if current lable has any '_' appended,
   # if so, then it is not a leaf lable.
   # e.g. the input is 'comm_gold.usd'
-  weights.file <- LoadRPPortfolioStructure(paste(OUTPUT.ROOT, 'structure.csv', sep = '\\'))
+  weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
   search.str <- paste('^',escape.weight.lable(lab), '_{1}', sep = '')
   #print(search.str)  # log
@@ -280,7 +291,7 @@ escape.weight.lable <- function(lab) {
 get.sub.lables <- function(lab) {
   # the input tag should contains the hirarachy information 
   # e.g. 'test_test1_test2'
-  weights.file <- LoadRPPortfolioStructure(paste(OUTPUT.ROOT, 'structure.csv', sep = '\\'))
+  weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
   if(lab=='root') {
     return(grep('^\\w+$', available.weights.labels, value = TRUE))
@@ -650,8 +661,8 @@ GetPreCovChangeDate <- function(lab){
 
 CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
   if (is.leaf.lable(lab)) {
-    # get the final allocation weights.
-    alloc.cfg <- rec
+    # only keep 'weight' and 'std' in the return results.
+    alloc.cfg <- rec[,c('weight', 'std')]
   } else {
     alloc.cfg <- NULL
     # load sub pf file
@@ -734,13 +745,39 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       pf.alloc <- CalcuRPAllocation()
       # compare pf.alloc with the one stored on disk.  use::: all.equal()
       # if changed, then rename the old one and save the new one.
-      # write.csv()
+      pre.pf.alloc.file <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
+      pre.pf.alloc <- LoadCSVWithLabelAsRowName(pre.pf.alloc.file)
+      if(!all.equal(pre.pf.alloc, pf.alloc)) {
+        #rename the previous created csv and save a new CSV.
+        if(file.exists(pre.pf.alloc.file)) {
+          # rename the existing file
+          rename.to <- paste(pre.pf.alloc.file, end.date, sep = '.')
+          file.rename(pre.pf.alloc.file, rename.to)
+        } 
+        #write the cfg to a new file
+        write.csv(pf.alloc, file = pre.pf.alloc.file)
+      }
     }
   }
   return(sub.pf.ts)
 }
 
-RebalanceSummary <- function(){
+#TODO: testing:
+# 1. very simple senario test. Only 2 asset (CYB, SH50) make sure the whole process is OK.
+# 2. 3 asset with same currency
+# 3. 3 asset with different currency
+# 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
+
+#TODO: constant lever (2X) benchmark coding. 
+# - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
+# - what is the rule to keep the 2X constant lever? within 5%? so within 205%~195%? 
+# - the process will be(weekly as an example):
+#  + get the standard allocation
+#  + rebalance ???how???
+#  + calculate the equity
+
+
+#RebalanceSummary <- function(){
   #list the differences between 2 runs (a week gap usually) there may be a couple of situations:
   # non-cov-change rebalance -- the base weight of the specific level doesn't change, but some assets 
   # exceed the weight std. 
@@ -766,7 +803,7 @@ RebalanceSummary <- function(){
   #I will need a summary of the rebalance details as instructions for my manual portfolio update
   #it should be all at leaf level. so the middle level rebalance should be converted to 
   #leaf level. 
-}
+#}
 
 ############## MAIN #####################
 #load latest prices, including everyting in the datasource folder
