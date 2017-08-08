@@ -189,9 +189,10 @@ LoadSubPortfolioCfg <- function(label) {
 get.fx.lab <- function (lab) {
   currency <- grep('\\.[a-z]{3}$', lab, value=TRUE)
   if(length(currency) == 0) {
-    currency='cny'
+    'cny'
+  } else {
+    tolower(substr(lab, (nchar(lab)-2), nchar(lab)))
   }
-  tolower(substr(lab, (nchar(lab)-2), nchar(lab)))
 }
 
 get.exchange.rate <- function (lab, prices) {
@@ -420,8 +421,7 @@ cov.changed <- function(ts, end.date.pre, end.date.current, time.window=BIG.ASSE
 load.sub.pf <- function(lab) {
   # the information for sub value including 1)history net value, 2) weights
   # 3) volumn, 4)std, should be already stored on the disk. or it is a init run!
-  tryCatch(
-    {
+  tryCatch({
       filename <- paste(lab, '.csv', sep = '')
       path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '\\')
       sub.pf.value <- read.csv.zoo(filename, format="%Y/%m/%d", tz='GMT')
@@ -706,12 +706,13 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
     for (sublab in labs) {
       convert.from <- get.fx.lab(sublab)
       ############## recursive call
-      tmp.ts <- AllocateRPAssetWeight(sublab, end.date)
+      tmp.ts <- AllocateRPAssetWeight(end.date, sublab)
       #convert to target currency
       if(convert.from != convert.to) {
         tmp.ts <- convert.to.target.currency(convert.from, convert.to, tmp.ts)
       }
       # combine the different assets' ts in the same category, e.g. stock: sp500, hs300
+      # TODO???????? need trim????????
       if (is.null(ts)) {
         ts <- tmp.ts
       } else {
