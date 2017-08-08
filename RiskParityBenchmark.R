@@ -57,23 +57,23 @@ load.all.prices <- function (label = 'all') {
     }
   }
   
-  rts <- NULL
+  ts <- NULL
   labs <- NULL
   for (i in 1:length(files)) {
     tmp.zoo <- read.csv.zoo(files[i], format="%Y/%m/%d", tz='GMT')
     tmp.xts <- as.xts(tmp.zoo)
     if (i == 1) {
-      rts <- tmp.xts
+      ts <- tmp.xts
     }else {
-      rts <- cbind(rts, tmp.xts)
+      ts <- cbind(ts, tmp.xts)
     }
     #remove the surfix -- '*.csv'
     labs <- append(labs, substr(names[i], 1, (nchar(names[i])-4)))
   }
-  colnames(rts) <- labs
-  #interpolation NA data
-  rts <- na.trim(rts)
-  rts <- na.approx(rts)
+  colnames(ts) <- labs
+  #trim and interpolation NA data
+  ts <- na.trim(ts)
+  ts <- na.approx(ts)
 }
 
 remove.label.level <- function(leveled.label) {
@@ -189,9 +189,10 @@ LoadSubPortfolioCfg <- function(label) {
 get.fx.lab <- function (lab) {
   currency <- grep('\\.[a-z]{3}$', lab, value=TRUE)
   if(length(currency) == 0) {
-    currency='cny'
+    'cny'
+  } else {
+    tolower(substr(lab, (nchar(lab)-2), nchar(lab)))
   }
-  tolower(substr(lab, (nchar(lab)-2), nchar(lab)))
 }
 
 get.exchange.rate <- function (lab, prices) {
@@ -239,12 +240,6 @@ get.normal.rt <- function(prices) {
   normal.rt <- prices/lag.prices - 1
   normal.rt <- na.omit(normal.rt)
 }
-
-#DELETED:::: output.bchmrk.weights <- function(bchmrk.w.file, w) {
-  #DELETED::::  rename previous file name by appending the timestamp. 
-  #DELETED::::  create a new file with new weights.
-#DELETED:::: write.csv(w, file = bchmrk.w.file)
-#DELETED:::: }
 
 LoadCSVWithLabelAsRowName <- function(bchmrk.w.file) {
   # load these value from file, without lever. the content format should be:
@@ -322,8 +317,7 @@ convert.to.target.currency <- function(from, to, ts){
   lab <- paste(from, to, sep = '')
   currency <- NULL
   is.reverse <- FALSE
-  tryCatch(
-    {
+  tryCatch({
       currency <- load.all.prices(lab)
     },
     error=function(cond){
@@ -420,27 +414,28 @@ cov.changed <- function(ts, end.date.pre, end.date.current, time.window=BIG.ASSE
 load.sub.pf <- function(lab) {
   # the information for sub value including 1)history net value, 2) weights
   # 3) volumn, 4)std, should be already stored on the disk. or it is a init run!
-  tryCatch(
-    {
+  out <- tryCatch({
       filename <- paste(lab, '.csv', sep = '')
-      path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '\\')
+      path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '/')
       sub.pf.value <- read.csv.zoo(filename, format="%Y/%m/%d", tz='GMT')
       sub.pf.value <- as.xts(sub.pf.value)
-      path <- paste(OUTPUT.ROOT, 'sub_portfolio', filename, sep = '\\')
+      path <- paste(OUTPUT.ROOT, 'sub_portfolio', filename, sep = '/')
       sub.pf.cfg <- read.csv(path, row.names = 1, sep = ',')
+      rs <- list(sub.pf.value, sub.pf.cfg)
+      names(rs) <- c('value', 'cfg')
     },
     error=function(cond){
       print(paste('sub portfolio', lab, 'does not exist', sep=' '))
+      print(cond)
       return(NULL)
     },
     warning=function(cond) {
       print(paste('sub portfolio', lab, 'does not exist', sep=' '))
+      print(cond)
       return(NULL)
     }
   )
-  rs <- list(sub.pf.value, sub.pf.cfg)
-  names(rs) <- c('value', 'cfg')
-  return(rs)
+  return(out)
 }
 
 init.pf <- function(ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='weeks') {
@@ -450,7 +445,7 @@ init.pf <- function(ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='w
   money <- INIT.PORTFOLIO.MONEY * weight
   volumn <- money / ts[end.date]
   std <- sqrt(diag(cov.mtx))
-  pf.name <- colnames(rts)
+  pf.name <- colnames(rts$rt)
   #w.low, w.high should not be need during init, because the init cfg will be 
   #written to the disk immediately.
   cfg <- data.frame(pf.name, weight, volumn, std, row.names = 1)
@@ -472,8 +467,8 @@ update.sub.pf.cfg <- function(label, cfg, end.date) {
   #[standard weight1 +/- one std（return）* w1]/ total weight, 
   #if the above scope is broken, then rebalance
   w.std <- weight*std
-  w.low <- w - w.std
-  w.high <- w + w.std
+  w.low <- weight - w.std
+  w.high <- weight + w.std
   df.cfg <- data.frame(pf.name, weight, volumn, std, w.low, w.high, row.names = 1)
   # check if file exists, if so rename it
   cfg.file <- paste(OUTPUT.ROOT, 'sub_portfolio', label, sep = '\\')
@@ -706,12 +701,13 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
     for (sublab in labs) {
       convert.from <- get.fx.lab(sublab)
       ############## recursive call
-      tmp.ts <- AllocateRPAssetWeight(sublab, end.date)
+      tmp.ts <- AllocateRPAssetWeight(end.date, sublab)
       #convert to target currency
       if(convert.from != convert.to) {
         tmp.ts <- convert.to.target.currency(convert.from, convert.to, tmp.ts)
       }
       # combine the different assets' ts in the same category, e.g. stock: sp500, hs300
+      # TODO???????? need trim????????
       if (is.null(ts)) {
         ts <- tmp.ts
       } else {
@@ -719,6 +715,9 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
       }
     }
     colnames(ts) <- labs
+    #trim and interpolation NA data
+    ts <- na.trim(ts)
+    ts <- na.approx(ts)
     ### use the sub portfolio ts matrix to construct the current level portfolio net value. 
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
@@ -728,8 +727,9 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
       update.sub.pf.cfg(lab, init.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
       #as it is the first time run to construct the sub portfolio, e.g. stock sub portfolio
       #it's easy to understand the net value of the sub portfolio will just equal the intial 
-      #money invested in the sub portfolio. 
-      tmp.date <- as.Date(end.date, tz='GMT')
+      #money invested in the sub portfolio.
+      #TODO::::bug fix, the ts should start with the beginning of the time window!!!!!!
+      tmp.date <- as.POSIXct(end.date, tz='GMT')
       sub.pf.ts <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
       sub.pf.ts <- as.xts(sub.pf.ts)
     } else {
@@ -815,4 +815,3 @@ rp.ts <- AllocateRPAssetWeight(end.date)
 # 2. 3 asset with same currency
 # 3. 3 asset with different currency
 # 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
-
