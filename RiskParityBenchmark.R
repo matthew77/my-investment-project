@@ -103,33 +103,33 @@ get.pre.n.years.rt <- function(ts, end, n=SUB.ASSET.TIME.WINDOW, period='weeks')
 # cov2cor(log_rt_cov); if the correlation will be needed.
 # how to simulate the excel solver to get the asset weight
 # First, the cov matrix must be ready
-aa <- c(0.0025,0.0015,-0.0025,0.0015,0.0225,0.0075,-0.0025,0.0075,0.0625)
-a3cov <- matrix(aa, nrow=3, ncol=3, byrow = TRUE)
-colnames(a3cov) <-  c('aa','bb','cc')
-rownames(a3cov) <- c('aa','bb','cc')
+#aa <- c(0.0025,0.0015,-0.0025,0.0015,0.0225,0.0075,-0.0025,0.0075,0.0625)
+#a3cov <- matrix(aa, nrow=3, ncol=3, byrow = TRUE)
+#colnames(a3cov) <-  c('aa','bb','cc')
+#rownames(a3cov) <- c('aa','bb','cc')
 # target function:
 # first calcuate the 3 assets' risk contribution
 # then compute the variance of the 3 risk contribution
 # the target should be that variance of the 3 risk contribution equals to ZERO
-risk.target <- function (w, cov_mtx) {  # inputs are the 3 assets weights
-  risk_bond <- (w[1]*w[1]*cov_mtx[1,1]+w[1]*w[2]*cov_mtx[1,2]+w[1]*w[3]*cov_mtx[1,3])*10000
-  risk_stock <- (w[2]*w[2]*cov_mtx[2,2]+w[1]*w[2]*cov_mtx[1,2]+w[2]*w[3]*cov_mtx[2,3])*10000
-  risk_comm <- (w[3]*w[3]*cov_mtx[3,3]+w[1]*w[3]*cov_mtx[1,3]+w[2]*w[3]*cov_mtx[2,3])*10000
-  var(c(risk_bond, risk_stock, risk_comm))
-}
+#risk.target <- function (w, cov_mtx) {  # inputs are the 3 assets weights
+#  risk_bond <- (w[1]*w[1]*cov_mtx[1,1]+w[1]*w[2]*cov_mtx[1,2]+w[1]*w[3]*cov_mtx[1,3])*10000
+#  risk_stock <- (w[2]*w[2]*cov_mtx[2,2]+w[1]*w[2]*cov_mtx[1,2]+w[2]*w[3]*cov_mtx[2,3])*10000
+#  risk_comm <- (w[3]*w[3]*cov_mtx[3,3]+w[1]*w[3]*cov_mtx[1,3]+w[2]*w[3]*cov_mtx[2,3])*10000
+#  var(c(risk_bond, risk_stock, risk_comm))
+#}
 # set boundry: w1+w2+w3 = 1
-Amat <- matrix(c(1,1,1,1,0,0,0,1,0,0,0,1), nrow = 4, ncol = 3, byrow = TRUE)
+#Amat <- matrix(c(1,1,1,1,0,0,0,1,0,0,0,1), nrow = 4, ncol = 3, byrow = TRUE)
 #[,1] [,2] [,3]
 #[1,]    1    1    1
 #[2,]    1    0    0
 #[3,]    0    1    0
 #[4,]    0    0    1
-b <- c(1,0,0,0)
-meq <- 1 # the first line is equal condition: w1+w2+w3 = 1
-p0 <- c(1/3, 1/3, 1/3) # the init value for w1,w2,w3
+#b <- c(1,0,0,0)
+#meq <- 1 # the first line is equal condition: w1+w2+w3 = 1
+#p0 <- c(1/3, 1/3, 1/3) # the init value for w1,w2,w3
 
-opt_rs <- spg(par=p0, fn=risk.target, cov_mtx= a3cov, project="projectLinear", 
-      projectArgs=list(A=Amat, b=b, meq=meq))
+#opt_rs <- spg(par=p0, fn=risk.target, cov_mtx= a3cov, project="projectLinear", 
+#      projectArgs=list(A=Amat, b=b, meq=meq))
 
 #opt_rs <- spg(par=p0, fn=optim.target, cov.mtx= a3cov, project="projectLinear", 
 #              projectArgs=list(A=Amat, b=b, meq=meq))
@@ -267,6 +267,9 @@ is.leaf.lable <- function(lab) {
   # search in the structure.csv file to check if current lable has any '_' appended,
   # if so, then it is not a leaf lable.
   # e.g. the input is 'comm_gold.usd'
+  if(lab == 'RPROOT') {
+    return(FALSE)
+  }
   weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
   search.str <- paste('^',escape.weight.lable(lab), '_{1}', sep = '')
@@ -293,7 +296,7 @@ get.sub.lables <- function(lab) {
   # e.g. 'test_test1_test2'
   weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
-  if(lab=='root') {
+  if(lab=='RPROOT') {
     return(grep('^\\w+$', available.weights.labels, value = TRUE))
   } else {
     # e.g. when input is stock, it should search for the direct descends
@@ -487,7 +490,7 @@ update.sub.pf.cfg <- function(label, cfg, end.date) {
 update.sub.pf.value <- function(label, ts) {
   #write the ts to disk
   # check if file exists, if so rename it
-  ts.file <- paste(OUTPUT.ROOT, '\sub_netvalue', label, sep = '\\')
+  ts.file <- paste(OUTPUT.ROOT, '/sub_netvalue', label, sep = '/')
   ts.file <- paste(cfg.file, 'csv', sep = '.')
   colnames(ts) <- c('value')
   #just wirte the ts value directly to the disk. the ts contains the full values.
@@ -593,7 +596,7 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
     # for big category such as bond, stock and commodity, use long term cycle to check the change 
     # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
     window <- SUB.ASSET.TIME.WINDOW
-    if (parent.lab == 'root') {
+    if (parent.lab == 'RPROOT') {
       window=BIG.ASSET.TIME.WINDOW
     }
     if(cov.changed(current.sub.ts, pre.date, format(date.obj), time.window = window)) {
@@ -659,7 +662,7 @@ GetPreCovChangeDate <- function(lab){
   cov.date[lab, 'date']
 }
 
-CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
+CalcuRPAllocation <- function(lab = 'RPROOT', weight = 1, rec = NULL) {
   if (is.leaf.lable(lab)) {
     # only keep 'weight' and 'std' in the return results.
     alloc.cfg <- rec[,c('weight', 'std')]
@@ -682,14 +685,12 @@ CalcuRPAllocation <- function(lab = 'root', weight = 1, rec = NULL) {
   return(alloc.cfg)
 }
 
-allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
+AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
   # bottom up strategy. first run risk parity in sub category,
   # then up to higher level of the category.
   # !!! the hist.prices should be windowed !!!
-  # return type: a list contains:
+  # return type:
   #   - net value of a sub portfolio e.g. stock which contains china, us etc. 
-  #   - weight list of the sub portfolio, the weight need to be updated every time 
-  #     the level goest up. e.g. from sp500 to stock -- from 1 to 0.3.
   # end.date format : 2007-01-07
   if (is.leaf.lable(lab)) {
     # load prices according to the lab.
@@ -705,7 +706,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
     for (sublab in labs) {
       convert.from <- get.fx.lab(sublab)
       ############## recursive call
-      tmp.ts <- allocate.asset.weight(sublab, end.date)
+      tmp.ts <- AllocateRPAssetWeight(sublab, end.date)
       #convert to target currency
       if(convert.from != convert.to) {
         tmp.ts <- convert.to.target.currency(convert.from, convert.to, tmp.ts)
@@ -740,7 +741,7 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
       sub.pf.ts <- calc.rp.pf.value(lab, ts, sub.pf$value, sub.pf$cfg, end.date)
     }
     update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
-    if(lab == 'root') {
+    if(lab == 'RPROOT') {
       #If it's the root, then output the standard asset (leaf) allocation information to disk. 
       pf.alloc <- CalcuRPAllocation()
       # compare pf.alloc with the one stored on disk.  use::: all.equal()
@@ -762,12 +763,6 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
   return(sub.pf.ts)
 }
 
-#TODO: testing:
-# 1. very simple senario test. Only 2 asset (CYB, SH50) make sure the whole process is OK.
-# 2. 3 asset with same currency
-# 3. 3 asset with different currency
-# 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
-
 #TODO: constant lever (2X) benchmark coding. 
 # - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
 # - what is the rule to keep the 2X constant lever? within 5%? so within 205%~195%? 
@@ -776,6 +771,11 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
 #  + rebalance ???how???
 #  + calculate the equity
 
+CalcuPRIndex <- function(alloc.cfg, end.date, lever=2, init.index=10000){
+  # TODO: a loop should be in here, go through day by day to calculate the index
+  # TODO: there should be a rebalance summary for each day.
+  # a net value ts file should be stored, and the non-existance of the file indicate the first time run.
+}
 
 #RebalanceSummary <- function(){
   #list the differences between 2 runs (a week gap usually) there may be a couple of situations:
@@ -806,27 +806,13 @@ allocate.asset.weight <- function (lab='root', end.date, period='weeks') {
 #}
 
 ############## MAIN #####################
-#load latest prices, including everyting in the datasource folder
-all.prices <- load.all.prices()
 
-# check whether it's the first time run? if so, the initialization will be needed
-pf.output <- paste(OUTPUT.ROOT, sep = '\\', 'portfolio.csv')
-if (!file.exists(pf.output)) { #first time run
-  init.rp.strategy(all.prices)
-} else {  #regular weekly run
+############## TEST #####################
+#TODO: testing:
+# 1. very simple senario test. Only 2 asset (CYB, SH50) make sure the whole process is OK.
+end.date <- '2016-06-01'
+rp.ts <- AllocateRPAssetWeight(end.date)
+# 2. 3 asset with same currency
+# 3. 3 asset with different currency
+# 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
 
-  #calculate current portfolio net value
-  pf <- load.curt.pf()
-  latest.prices <- all.prices[length(index(all.prices)),]
-  net.value <- get.pf.value(pf, latest.prices)
-  # print/log the net value information 
-  #
-  # need rebalance ?????????
-  ## if it's first time run, then 
-  # --- normal rebalance
-  # --- cov change rebalance
-}
-
-#aa2 <- as.vector(aa)
-#names(aa2) <-  c('qq','ee','rr')
-#aa2['qq']

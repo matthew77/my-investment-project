@@ -1,13 +1,3 @@
-asset_name, weight
-stock, -1
-comm, -1
-bond,-1
-stock_sp500, -1
-stock_hs300, -1
-comm_gold.usd, -1
-comm_comm.usd, -1
-bond_us10y, -1
-bond_us2y, -1
-test_test1_test2_test3, -1
-test_test1_test2, -1
-test_test1, -1
+asset_name, desc
+CYB, Chinese nasdaq
+SH50, shanghai stock
