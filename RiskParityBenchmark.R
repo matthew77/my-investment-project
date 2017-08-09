@@ -415,7 +415,7 @@ load.sub.pf <- function(lab) {
   # the information for sub value including 1)history net value, 2) weights
   # 3) volumn, 4)std, should be already stored on the disk. or it is a init run!
   out <- tryCatch({
-      filename <- paste(lab, '.csv', sep = '')
+      filename <- paste(lab, 'csv', sep = '.')
       path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '/')
       sub.pf.value <- read.csv.zoo(filename, format="%Y/%m/%d", tz='GMT')
       sub.pf.value <- as.xts(sub.pf.value)
