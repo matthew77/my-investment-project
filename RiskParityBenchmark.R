@@ -12,6 +12,7 @@ SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
 COV.COMP.THRESHOLD=1-0.95  #95%
 INIT.PORTFOLIO.MONEY=100000
+MIN.WINDOW.TO.START=100 #weeks. if the ts data is less than this threashold, then the data should not be included.
 
 #DATA.FILES <- new.env()
 #assign('COMM', paste(DATA.ROOT, sep = '\\', 'benchMarkCOMM.csv'))
@@ -415,7 +416,7 @@ load.sub.pf <- function(lab) {
   # the information for sub value including 1)history net value, 2) weights
   # 3) volumn, 4)std, should be already stored on the disk. or it is a init run!
   out <- tryCatch({
-      filename <- paste(lab, '.csv', sep = '')
+      filename <- paste(lab, 'csv', sep = '.')
       path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '/')
       sub.pf.value <- read.csv.zoo(filename, format="%Y/%m/%d", tz='GMT')
       sub.pf.value <- as.xts(sub.pf.value)
@@ -438,23 +439,34 @@ load.sub.pf <- function(lab) {
   return(out)
 }
 
-init.pf <- function(ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='weeks') {
+InitRPPF <- function(label, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='weeks') {
   rts <- get.pre.n.years.rt(ts, end.date, n = hist.window, period=period)
+  #check the ts contains enough data.
+  idx <- index(rts)
+  pos1 <- idx[1]
+  pos2 <- idx[length(idx)]
+  span.weeks <- as.numeric(pos2 - pos1, units='weeks')
+  if(span.weeks < MIN.WINDOW.TO.START) {
+    e <- simpleError(paste('Not enough data to start the process :::', colnames(ts), sep = ' '))
+    stop(e)
+  }
   cov.mtx <- rts$cov
   weight <- exe.optim(cov.mtx)
   money <- INIT.PORTFOLIO.MONEY * weight
-  volumn <- money / ts[end.date]
+  volumn <- money / ts[pos1]  
   std <- sqrt(diag(cov.mtx))
   pf.name <- colnames(rts$rt)
   #w.low, w.high should not be need during init, because the init cfg will be 
   #written to the disk immediately.
   cfg <- data.frame(pf.name, weight, volumn, std, row.names = 1)
-  results <- list(cfg, INIT.PORTFOLIO.MONEY)
-  names(results) <- c('cfg', 'net')
+  cfg <- SaveRPPFCfg(label, cfg, format(pos1))    #save weight, volumn, std to disk, back up previous cfg if any 
+  UpdateCovChangeDate(label, end.date)  #save the init cov change date. 
+  results <- list(cfg, format(pos1))
+  names(results) <- c('cfg', 'start.date')
   return(results)
 } 
 
-update.sub.pf.cfg <- function(label, cfg, end.date) {
+SaveRPPFCfg <- function(label, cfg, end.date) {
   #write a dataframe/matrix to disk
   #cfg is a list of a list. outter list contains w, volumn, std
   #inner list contains sub assets.
@@ -480,6 +492,7 @@ update.sub.pf.cfg <- function(label, cfg, end.date) {
   } 
   #write the cfg to a new file
   write.csv(df.cfg, file = cfg.file)
+  df.cfg
 }
 
 update.sub.pf.value <- function(label, ts) {
@@ -525,7 +538,7 @@ rebalance <- function(cfg, sub.pf.value, current.date.ts) {
   cfg
 }
 
-calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date) {
+CalcuRPTS <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date, init.run=FALSE) {
   # current.sub.ts -- contains the ts of each sub asset which consist hist.pf.ts.
   # hist.pf.ts -- history net value of current level (a level higher then current.sub.ts) ts.
   # cfg -- current level portfolio config info including: weight, volumn, std
@@ -582,32 +595,35 @@ calc.rp.pf.value <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.d
       # recalculate the volumn
       cfg <- rebalance(cfg, sub.sum, p)
       #update the cfg, and write the update to disk
-      update.sub.pf.cfg(parent.lab, cfg, date.obj) 
+      cfg <- SaveRPPFCfg(parent.lab, cfg, date.obj) 
     }
     # COV Change Rebalance:::::::::
-    # check if the cov has been changed, if so, produced the new cfg file 
-    #     for the use of next time
-    pre.date <- GetPreCovChangeDate(parent.lab)
-    # for big category such as bond, stock and commodity, use long term cycle to check the change 
-    # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
-    window <- SUB.ASSET.TIME.WINDOW
-    if (parent.lab == 'RPROOT') {
-      window=BIG.ASSET.TIME.WINDOW
-    }
-    if(cov.changed(current.sub.ts, pre.date, format(date.obj), time.window = window)) {
-      print(paste(parent.lab, ' --- covariance matrix has been changed since last time'))
-      # need a rebalance, since the weights of each asset has been changed.
-      rts <- get.pre.n.years.rt(ts, format(date.obj))
-      # run the excel solver like program to get the new weights.
-      new.weights <- exe.optim(rts$cov)
-      #update the new weights in cfg
-      for(lab in labs) {
-        cfg[lab, 'weight'] <- new.weights[lab]
+    # during the init run, the cov will not be changed in the init ts construction.
+    if(!init.run) {
+      # check if the cov has been changed, if so, produced the new cfg file 
+      #     for the use of next time
+      pre.date <- GetPreCovChangeDate(parent.lab)
+      # for big category such as bond, stock and commodity, use long term cycle to check the change 
+      # of cov. for sub category such as sp500 and nasdaq, use short term cycle to check the change
+      window <- SUB.ASSET.TIME.WINDOW
+      if (parent.lab == 'RPROOT') {
+        window=BIG.ASSET.TIME.WINDOW
       }
-      
-      cfg <- rebalance(cfg, sub.sum, p)
-      update.sub.pf.cfg(parent.lab, cfg, date.obj)    #save weight, volumn, std to disk, back up previous cfg if any 
-      UpdateCovChangeDate(parent.lab, format(date.obj))
+      if(cov.changed(current.sub.ts, pre.date, format(date.obj), time.window = window)) {
+        print(paste(parent.lab, ' --- covariance matrix has been changed since last time'))
+        # need a rebalance, since the weights of each asset has been changed.
+        rts <- get.pre.n.years.rt(ts, format(date.obj))
+        # run the excel solver like program to get the new weights.
+        new.weights <- exe.optim(rts$cov)
+        #update the new weights in cfg
+        for(lab in labs) {
+          cfg[lab, 'weight'] <- new.weights[lab]
+        }
+        
+        cfg <- rebalance(cfg, sub.sum, p)
+        SaveRPPFCfg(parent.lab, cfg, date.obj)    #save weight, volumn, std to disk, back up previous cfg if any 
+        UpdateCovChangeDate(parent.lab, format(date.obj))
+      }
     }
     #store the net value of the sub portfolio into a ts
     tmp.zoo <- zoo(sub.sum, index(p))
@@ -722,23 +738,24 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
       # it's the first time run for this sub portfolio, so should initialized this portfolio
-      init.param <- init.pf(ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period=period)
+      init.param <- InitRPPF(lab, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period=period)
       init.cfg <- init.param$cfg
-      update.sub.pf.cfg(lab, init.cfg, end.date)    #save weight, volumn, std to disk, back up previous cfg if any 
       #as it is the first time run to construct the sub portfolio, e.g. stock sub portfolio
       #it's easy to understand the net value of the sub portfolio will just equal the intial 
       #money invested in the sub portfolio.
+      first.day <- init.param$start.date
       #TODO::::bug fix, the ts should start with the beginning of the time window!!!!!!
-      tmp.date <- as.POSIXct(end.date, tz='GMT')
-      sub.pf.ts <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
-      sub.pf.ts <- as.xts(sub.pf.ts)
+      
+      # DELETE tmp.date <- as.POSIXct(end.date, tz='GMT')
+      # DELETE sub.pf.ts <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
+      # DELETE sub.pf.ts <- as.xts(sub.pf.ts)
     } else {
       # cfg and net value already saved on disk
       # 1. load sub portfolio ts (previous created).
       #       sub.pf$value   sub.pf$cfg
       # 2. calculate the net value start from previous end [including rebalance], and save to disk
       # actually, the sub pf ts is full ts, so just need to overwrite the file on the disk
-      sub.pf.ts <- calc.rp.pf.value(lab, ts, sub.pf$value, sub.pf$cfg, end.date)
+      sub.pf.ts <- CalcuRPTS(lab, ts, sub.pf$value, sub.pf$cfg, end.date)
     }
     update.sub.pf.value(lab, sub.pf.ts)  #save sub portfolio net value to disk
     if(lab == 'RPROOT') {
