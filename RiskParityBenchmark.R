@@ -53,7 +53,7 @@ load.all.prices <- function (label = 'all') {
   } else {
     for(tmplab in label) {
       tmplab <- remove.label.level(tmplab)
-      files <- paste(DATA.ROOT, '\\', tmplab, '.csv', sep='')
+      files <- paste(DATA.ROOT, '/', tmplab, '.csv', sep='')
       names <- paste(label, '.csv', sep='')
     }
   }
@@ -418,7 +418,7 @@ load.sub.pf <- function(lab) {
   out <- tryCatch({
       filename <- paste(lab, 'csv', sep = '.')
       path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '/')
-      sub.pf.value <- read.csv.zoo(filename, format="%Y/%m/%d", tz='GMT')
+      sub.pf.value <- read.csv.zoo(path, format="%Y/%m/%d", tz='GMT')
       sub.pf.value <- as.xts(sub.pf.value)
       path <- paste(OUTPUT.ROOT, 'sub_portfolio', filename, sep = '/')
       sub.pf.cfg <- read.csv(path, row.names = 1, sep = ',')
@@ -442,7 +442,7 @@ load.sub.pf <- function(lab) {
 InitRPPF <- function(label, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='weeks') {
   rts <- get.pre.n.years.rt(ts, end.date, n = hist.window, period=period)
   #check the ts contains enough data.
-  idx <- index(rts)
+  idx <- index(rts$rt)
   pos1 <- idx[1]
   pos2 <- idx[length(idx)]
   span.weeks <- as.numeric(pos2 - pos1, units='weeks')
@@ -453,7 +453,7 @@ InitRPPF <- function(label, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, p
   cov.mtx <- rts$cov
   weight <- exe.optim(cov.mtx)
   money <- INIT.PORTFOLIO.MONEY * weight
-  volumn <- money / ts[pos1]  
+  volumn <- as.numeric(money / ts[pos1])
   std <- sqrt(diag(cov.mtx))
   pf.name <- colnames(rts$rt)
   #w.low, w.high should not be need during init, because the init cfg will be 
@@ -461,8 +461,12 @@ InitRPPF <- function(label, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, p
   cfg <- data.frame(pf.name, weight, volumn, std, row.names = 1)
   cfg <- SaveRPPFCfg(label, cfg, format(pos1))    #save weight, volumn, std to disk, back up previous cfg if any 
   UpdateCovChangeDate(label, end.date)  #save the init cov change date. 
-  results <- list(cfg, format(pos1))
-  names(results) <- c('cfg', 'start.date')
+  # consturct the ts before the run day. 
+  first.day.pf <- zoo(INIT.PORTFOLIO.MONEY, pos1) #it's the initial money invested, defined as a constant.
+  first.day.pf <- as.xts(first.day.pf)
+  init.pf.ts <- CalcuRPTS(label, ts, first.day.pf, cfg, end.date, init.run=TRUE)
+  results <- list(cfg, init.pf.ts)
+  names(results) <- c('cfg', 'ts')
   return(results)
 } 
 
@@ -472,8 +476,8 @@ SaveRPPFCfg <- function(label, cfg, end.date) {
   #inner list contains sub assets.
   #end.date is used to log, when renaming file. the format is 2010-06-08
   pf.name <- rownames(cfg)
-  weight <- as.numeric(cfg$w)
-  volumn <- as.numeric(cfg$vol)
+  weight <- as.numeric(cfg$weight)
+  volumn <- as.numeric(cfg$volumn)
   std <- as.numeric(cfg$std)
   # calculate weight high & low. 
   #[standard weight1 +/- one std（return）* w1]/ total weight, 
@@ -483,7 +487,7 @@ SaveRPPFCfg <- function(label, cfg, end.date) {
   w.high <- weight + w.std
   df.cfg <- data.frame(pf.name, weight, volumn, std, w.low, w.high, row.names = 1)
   # check if file exists, if so rename it
-  cfg.file <- paste(OUTPUT.ROOT, 'sub_portfolio', label, sep = '\\')
+  cfg.file <- paste(OUTPUT.ROOT, 'sub_portfolio', label, sep = '/')
   cfg.file <- paste(cfg.file, 'csv', sep = '.')
   if(file.exists(cfg.file)) {
     # rename the existing file
@@ -492,14 +496,14 @@ SaveRPPFCfg <- function(label, cfg, end.date) {
   } 
   #write the cfg to a new file
   write.csv(df.cfg, file = cfg.file)
-  df.cfg
+  return(df.cfg)
 }
 
 update.sub.pf.value <- function(label, ts) {
   #write the ts to disk
   # check if file exists, if so rename it
   ts.file <- paste(OUTPUT.ROOT, '/sub_netvalue', label, sep = '/')
-  ts.file <- paste(cfg.file, 'csv', sep = '.')
+  ts.file <- paste(ts.file, 'csv', sep = '.')
   colnames(ts) <- c('value')
   #just wirte the ts value directly to the disk. the ts contains the full values.
   #so every time just overwrite is required. 
@@ -532,7 +536,7 @@ rebalance <- function(cfg, sub.pf.value, current.date.ts) {
     money <- sub.pf.value * w
     vol <- money/as.numeric(current.date.ts[, lab])
     #update the cfg
-    print('rebalance on', format(index(current.date.ts)), '--', lab, '[', vol-cfg[lab, 'volumn'], ']')
+    print(paste('rebalance on', format(index(current.date.ts)), '--', lab, 'volumn changed by [', vol-cfg[lab, 'volumn'], ']'))
     cfg[lab, 'volumn'] <- vol
   }
   cfg
@@ -572,7 +576,7 @@ CalcuRPTS <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date, in
   ts.in.range <- current.sub.ts[paste(start.pos, end.date, sep = '/')]
   current.pf.ts = NULL
   labs <- rownames(cfg) # get the assets' names in this sub portfolio
-  for(i in nrow(ts.in.range)) {
+  for(i in 1:nrow(ts.in.range)) {
     p <- ts.in.range[i]
     date.obj <- index(p)  # get the date obj for current date.
     sub.total <- c() #store the value of each asset with names set by labs
@@ -638,12 +642,12 @@ UpdateCovChangeDate <- function(lab, date.str){
   if(!file.exists(cov.date.file)){
     # it is the first record in the file, so just create the file and write the single record.
     rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
-    write.csv(rec, cov.date.file, row.names = FALSE)
+    write.csv(rec, cov.date.file, row.names = TRUE)
   } else {
     #rename file to keep the cov change records.
     cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
     date.return <- cov.date[date.str, 'date']
-    if (is.na(date.return)) {
+    if (is.null(date.return)) {
       # this record is new, so just append it into the data.frame.
       rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
       cov.date <- rbind(cov.date, rec)
@@ -723,7 +727,6 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
         tmp.ts <- convert.to.target.currency(convert.from, convert.to, tmp.ts)
       }
       # combine the different assets' ts in the same category, e.g. stock: sp500, hs300
-      # TODO???????? need trim????????
       if (is.null(ts)) {
         ts <- tmp.ts
       } else {
@@ -738,17 +741,8 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
       # it's the first time run for this sub portfolio, so should initialized this portfolio
-      init.param <- InitRPPF(lab, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period=period)
-      init.cfg <- init.param$cfg
-      #as it is the first time run to construct the sub portfolio, e.g. stock sub portfolio
-      #it's easy to understand the net value of the sub portfolio will just equal the intial 
-      #money invested in the sub portfolio.
-      first.day <- init.param$start.date
-      #TODO::::bug fix, the ts should start with the beginning of the time window!!!!!!
-      
-      # DELETE tmp.date <- as.POSIXct(end.date, tz='GMT')
-      # DELETE sub.pf.ts <- zoo(init.param$net, tmp.date) #it's the initial money invested, defined as a constant.
-      # DELETE sub.pf.ts <- as.xts(sub.pf.ts)
+      init.pf <- InitRPPF(lab, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period=period)
+      sub.pf.ts <- init.pf$ts
     } else {
       # cfg and net value already saved on disk
       # 1. load sub portfolio ts (previous created).
