@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -759,7 +759,7 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
       # if changed, then rename the old one and save the new one.
       pre.pf.alloc.file <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
       pre.pf.alloc <- LoadCSVWithLabelAsRowName(pre.pf.alloc.file)
-      if(!all.equal(pre.pf.alloc, pf.alloc)) {
+      if(!identical(pre.pf.alloc, pf.alloc)) {
         #rename the previous created csv and save a new CSV.
         if(file.exists(pre.pf.alloc.file)) {
           # rename the existing file
@@ -821,8 +821,9 @@ CalcuPRIndex <- function(alloc.cfg, end.date, lever=2, init.index=10000){
 ############## TEST #####################
 #TODO: testing:
 # 1. very simple senario test. Only 2 asset (CYB, SH50) make sure the whole process is OK.
-end.date <- '2016-06-01'
-rp.ts <- AllocateRPAssetWeight(end.date)
+  #end.date <- '2016-06-01'
+  #rp.ts <- AllocateRPAssetWeight(end.date)
+  #DONE!
 # 2. 3 asset with same currency
 # 3. 3 asset with different currency
 # 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
