@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -293,7 +293,7 @@ get.sub.lables <- function(lab) {
   weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
   if(lab=='RPROOT') {
-    return(grep('^\\w+$', available.weights.labels, value = TRUE))
+    return(grep('^[A-Za-z0-9\\.]+$', available.weights.labels, value = TRUE))
   } else {
     # e.g. when input is stock, it should search for the direct descends
     # stock_sp500, stock_hs300
@@ -825,5 +825,10 @@ CalcuPRIndex <- function(alloc.cfg, end.date, lever=2, init.index=10000){
   #rp.ts <- AllocateRPAssetWeight(end.date)
   #DONE!
 # 2. 3 asset with same currency
+#end.date <- '2016-06-01'
+#rp.ts <- AllocateRPAssetWeight(end.date)
+#DONE!
 # 3. 3 asset with different currency
+end.date <- '2016-06-01'
+rp.ts <- AllocateRPAssetWeight(end.date)
 # 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
