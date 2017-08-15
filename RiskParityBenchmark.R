@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -642,11 +642,12 @@ UpdateCovChangeDate <- function(lab, date.str){
   if(!file.exists(cov.date.file)){
     # it is the first record in the file, so just create the file and write the single record.
     rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
-    write.csv(rec, cov.date.file, row.names = TRUE)
+    write.csv(rec, cov.date.file)
   } else {
     #rename file to keep the cov change records.
     cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
-    date.return <- cov.date[date.str, 'date']
+    #TODO::::::::bug fix. is.null not correct;;; when only one record in df, the rowname is very wired.better to us subset subset(rec, rownames(rec)=='stock')
+    date.return <- cov.date[lab, 'date']
     if (is.null(date.return)) {
       # this record is new, so just append it into the data.frame.
       rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
@@ -654,7 +655,7 @@ UpdateCovChangeDate <- function(lab, date.str){
       write.csv(cov.date, cov.date.file)
     } else {
       # update the record 
-      cov.date[date.str, 'date'] <- date.str
+      cov.date[lab, 'date'] <- date.str
       write.csv(cov.date, cov.date.file)
     }
   }
