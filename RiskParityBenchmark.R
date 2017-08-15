@@ -829,6 +829,9 @@ CalcuPRIndex <- function(alloc.cfg, end.date, lever=2, init.index=10000){
 #rp.ts <- AllocateRPAssetWeight(end.date)
 #DONE!
 # 3. 3 asset with different currency
+#end.date <- '2016-06-01'
+#rp.ts <- AllocateRPAssetWeight(end.date)
+#DONE!
+# 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
 end.date <- '2016-06-01'
 rp.ts <- AllocateRPAssetWeight(end.date)
-# 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).

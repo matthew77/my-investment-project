@@ -1,4 +1,12 @@
 asset_name, desc
-CYB, Chinese nasdaq
-SH50, shanghai stock
-COMM.usd, goldman commodity index
+stock, level 2 for stock
+bond.usd, level 2 for bond
+comm.usd, level 2 for commodity
+stock_SP500.usd, level 3 for stock leaf
+stock_chstock, level 3 for stock
+bond.usd_US10Y.usd, level 3 for bond leaf
+bond.usd_US2Y.usd, level 3 for bond leaf
+comm.usd_GSCI.usd, level 3 for comm leaf
+comm.usd_GOLD.usd, level 3 for comm leaf
+stock_chstock_CYB, level 4 for stock leaf
+stock_chstock_SH50, level 4 for stock leaf
