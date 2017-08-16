@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -646,9 +646,9 @@ UpdateCovChangeDate <- function(lab, date.str){
   } else {
     #rename file to keep the cov change records.
     cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
-    #TODO::::::::bug fix. is.null not correct;;; when only one record in df, the rowname is very wired.better to us subset subset(rec, rownames(rec)=='stock')
-    date.return <- cov.date[lab, 'date']
-    if (is.null(date.return)) {
+    #bug fix. is.null not correct;;; when only one record in df, the rowname is very wired.better to us subset subset(rec, rownames(rec)=='stock')
+    rec.date <- subset(cov.date, colnames(cov.date)==lab)
+    if (nrow(rec.date)==0) {
       # this record is new, so just append it into the data.frame.
       rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
       cov.date <- rbind(cov.date, rec)
