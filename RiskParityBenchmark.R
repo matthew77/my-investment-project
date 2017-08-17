@@ -783,39 +783,23 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
 #  + rebalance ???how???
 #  + calculate the equity
 
-CalcuPRIndex <- function(alloc.cfg, end.date, lever=2, init.index=10000){
-  # TODO: a loop should be in here, go through day by day to calculate the index
-  # TODO: there should be a rebalance summary for each day.
-  # a net value ts file should be stored, and the non-existance of the file indicate the first time run.
-}
-
-#RebalanceSummary <- function(){
-  #list the differences between 2 runs (a week gap usually) there may be a couple of situations:
-  # non-cov-change rebalance -- the base weight of the specific level doesn't change, but some assets 
-  # exceed the weight std. 
-  # cov-change rebalance -- the base weight of the specific level should be changed. 
-  # what should be returned?
-  #   - the new weights if any. Note, if the interim weights changed, the leaf level must be changed as well. 
-  #        the weights changes (delta) e.g. +/- delta(weights)
-  #   - the new volumn as well as the volum changes(delta)
-  #
-  # common function: should return the current live weight % (assets allocation); and benchmark weight %
-  # (assets allocation), this benchmark may be produced some weeks ago. 
-  #
-  # the non-cov-change (base weight) rebalance can happen anytime during the run e.g. from Monday to Saturday. But
-  # the cov-change rebalance can only happen on the run-day (end.date). So the non-cov-change rebalance
-  # cannot match run-day-update-only updation, unless this program are setup to run everyday. But this 
-  # should not be a problem for Benchmark, since benchmark doesn't need to match real life opertion closely
-  # As a benchmark, the non-cov-change rebalance can happen on any single day, and the cov-change rebalance
-  # can only happen on run-day. that's good enough for benchmark. !!!Future modification can be made such as
-  # the non-cov-change can only happen on run-day!!!
+CalcuPRIndex <- function(end.date, lever=2){
+  # get previous risk parity history ts from file. If the file does not exist, 
+  # the it is the first time the RP Index is created.
+  # TODO::::
   
-  #TODO:::::: will need to get the detailed asset allocation including weight, volumn, std, w.low, w.high ???
-  #what about the 2X lever??????????
-  #I will need a summary of the rebalance details as instructions for my manual portfolio update
-  #it should be all at leaf level. so the middle level rebalance should be converted to 
-  #leaf level. 
-#}
+  # get the intervals (days or weeks) between the last date in the index file and end.date
+  # TODO:::
+  
+  # loop through the interval. on each day/week:
+  # 1. get the uptodate weight allocation
+  # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
+  #     the total portfolio should be around 200% +/- 10%. 
+  # 3. assemble the ts.
+  # TODO:
+  
+  # write the results onto the file
+}
 
 ############## MAIN #####################
 

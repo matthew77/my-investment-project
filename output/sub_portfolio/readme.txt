@@ -1,0 +1,1 @@
+存放Risk Parity Portfolio的allocation信息，包括中间层的Risk Parity Portfolio的allocation.
