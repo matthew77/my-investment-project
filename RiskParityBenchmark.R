@@ -12,6 +12,7 @@ SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
 COV.COMP.THRESHOLD=1-0.95  #95%
 INIT.PORTFOLIO.MONEY=100000
+INIT.INDEX=10000
 MIN.WINDOW.TO.START=100 #weeks. if the ts data is less than this threashold, then the data should not be included.
 
 #DATA.FILES <- new.env()
@@ -786,8 +787,13 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
 CalcuPRIndex <- function(end.date, lever=2){
   # get previous risk parity history ts from file. If the file does not exist, 
   # the it is the first time the RP Index is created.
-  # TODO::::
-  
+  rp.index.file <- paste(OUTPUT.ROOT, 'rp_index', lever, sep = '/')
+  rp.index.file <- paste(rp.index.file, 'X.csv', sep = '')  #..../2X.csv
+  if(!file.exists(rp.index.file)) {
+    # init the index. [Done need to think think about rebalance]
+    AllocateRPAssetWeight(end.date) #calculate the init weights allocation
+    GetCurrentRPAlloc() #TODO: should include base alloc and 2X alloc???????
+  } else {
   # get the intervals (days or weeks) between the last date in the index file and end.date
   # TODO:::
   
@@ -797,7 +803,7 @@ CalcuPRIndex <- function(end.date, lever=2){
   #     the total portfolio should be around 200% +/- 10%. 
   # 3. assemble the ts.
   # TODO:
-  
+  }
   # write the results onto the file
 }
 
