@@ -681,8 +681,12 @@ GetPreCovChangeDate <- function(lab){
 
 CalcuRPAllocation <- function(lab = 'RPROOT', weight = 1, rec = NULL) {
   if (is.leaf.lable(lab)) {
-    # only keep 'weight' and 'std' in the return results.
-    alloc.cfg <- rec[,c('weight', 'std')]
+    # update w.low & w.high before return.
+    alloc.cfg <- rec[,c('weight', 'std', 'w.low', 'w.high')]
+    std <- alloc.cfg[,'std']
+    w <- alloc.cfg[,'weight']
+    alloc.cfg[,'w.low'] <- w - w*std
+    alloc.cfg[,'w.high'] <- w + w*std
   } else {
     alloc.cfg <- NULL
     # load sub pf file
@@ -776,23 +780,33 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
   return(sub.pf.ts)
 }
 
+GetRPAllocForIndex <- function(lever) {
+  path <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
+  w <- read.csv(path, row.names = 1, sep = ',')
+  w[,c('weight', 'w.low', 'w.high')] <- w[,c('weight', 'w.low', 'w.high')] * lever
+}
+
 #TODO: constant lever (2X) benchmark coding. 
 # - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
-# - what is the rule to keep the 2X constant lever? within 5%? so within 205%~195%? 
-# - the process will be(weekly as an example):
-#  + get the standard allocation
-#  + rebalance ???how???
-#  + calculate the equity
+# - what is the rule to keep the 2X constant lever? within 10%, so within 210%~190%? 
+# - I will suggest weekly run (using weekly data)
+# !!!How to put the momentum factor into the process??? A obvious question for momentum is that:
+# 1 million bond and 1 millon stock has very different risk. you cannot simply short the 1 million 
+# in bond and then simple long 1 million in stock. that will put too much in stock. so then answer may be 
+# run the exe.optim with specified risk allocation. !!!???
 
 CalcuPRIndex <- function(end.date, lever=2){
+  AllocateRPAssetWeight(end.date) #calculate the reference weights allocation
+  index.w <- GetRPIndexAlloc(lever)  # get the weights according to lever, momentum etc...
   # get previous risk parity history ts from file. If the file does not exist, 
   # the it is the first time the RP Index is created.
   rp.index.file <- paste(OUTPUT.ROOT, 'rp_index', lever, sep = '/')
   rp.index.file <- paste(rp.index.file, 'X.csv', sep = '')  #..../2X.csv
   if(!file.exists(rp.index.file)) {
-    # init the index. [Done need to think think about rebalance]
-    AllocateRPAssetWeight(end.date) #calculate the init weights allocation
-    GetCurrentRPAlloc() #TODO: should include base alloc and 2X alloc???????
+    # init the index. end.date is the first day the index is created.
+    equity <- INIT.INDEX
+    market.value <- equity * index.w
+    volumn <- market.value / price   #??? how to get the price???
   } else {
   # get the intervals (days or weeks) between the last date in the index file and end.date
   # TODO:::
