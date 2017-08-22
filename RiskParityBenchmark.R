@@ -7,6 +7,7 @@ DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
 #DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
 OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
 #OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
 TRADING.DAYS=252
@@ -46,7 +47,9 @@ get.log.rt <- function(prices) {#Find R: logrets:
 ###
 load.all.prices <- function (label = 'all') {
   #load all the prices from the data source folder. 
-  if (label == 'all') {
+  files <- NULL
+  names <- NULL
+  if ('all' %in% label) {
     files <- list.files(path = DATA.ROOT, full.names = TRUE, 
              recursive = FALSE, include.dirs = FALSE, pattern = "*.csv")
     names <- list.files(path = DATA.ROOT, full.names = FALSE, 
@@ -54,8 +57,8 @@ load.all.prices <- function (label = 'all') {
   } else {
     for(tmplab in label) {
       tmplab <- remove.label.level(tmplab)
-      files <- paste(DATA.ROOT, '/', tmplab, '.csv', sep='')
-      names <- paste(label, '.csv', sep='')
+      files <- append(files, paste(DATA.ROOT, '/', tmplab, '.csv', sep=''))
+      names <- append(names, paste(label, '.csv', sep=''))
     }
   }
   
@@ -267,7 +270,7 @@ is.leaf.lable <- function(lab) {
   if(lab == 'RPROOT') {
     return(FALSE)
   }
-  weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
+  weights.file <- LoadCSVWithLabelAsRowName(paste(CONFIG.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
   search.str <- paste('^',escape.weight.lable(lab), '_{1}', sep = '')
   #print(search.str)  # log
@@ -291,7 +294,7 @@ escape.weight.lable <- function(lab) {
 get.sub.lables <- function(lab) {
   # the input tag should contains the hirarachy information 
   # e.g. 'test_test1_test2'
-  weights.file <- LoadCSVWithLabelAsRowName(paste(OUTPUT.ROOT, 'structure.csv', sep = '/'))
+  weights.file <- LoadCSVWithLabelAsRowName(paste(CONFIG.ROOT, 'structure.csv', sep = '/'))
   available.weights.labels <- rownames(weights.file)
   if(lab=='RPROOT') {
     return(grep('^[A-Za-z0-9\\.]+$', available.weights.labels, value = TRUE))
@@ -784,6 +787,14 @@ GetRPAllocForIndex <- function(lever) {
   path <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
   w <- read.csv(path, row.names = 1, sep = ',')
   w[,c('weight', 'w.low', 'w.high')] <- w[,c('weight', 'w.low', 'w.high')] * lever
+  unleveled.rowname <- NULL
+  leveled.rowname <- rownames(w)
+  for(name in leveled.rowname) {
+    unleveled <- remove.label.level(name)
+    unleveled.rowname <- append(unleveled.rowname, unleveled)
+  }
+  w <- data.frame(w, unleveled.lab=unleveled.rowname, stringsAsFactors = FALSE)
+  w
 }
 
 #TODO: constant lever (2X) benchmark coding. 
@@ -796,17 +807,25 @@ GetRPAllocForIndex <- function(lever) {
 # run the exe.optim with specified risk allocation. !!!???
 
 CalcuPRIndex <- function(end.date, lever=2){
+  #load init data and parameters
   AllocateRPAssetWeight(end.date) #calculate the reference weights allocation
-  index.w <- GetRPIndexAlloc(lever)  # get the weights according to lever, momentum etc...
+  index.w <- GetRPAllocForIndex(lever)  # get the weights according to lever, momentum etc...
+  labs <- index.w[,'unleveled.lab']
+  ts <- load.all.prices(labs)
+  index.cfg.file <- paste(CONFIG.ROOT, 'index_cfg.csv', sep = '/')
+  index.cfg <- read.csv(index.cfg.file, row.names = 1)
   # get previous risk parity history ts from file. If the file does not exist, 
   # the it is the first time the RP Index is created.
   rp.index.file <- paste(OUTPUT.ROOT, 'rp_index', lever, sep = '/')
   rp.index.file <- paste(rp.index.file, 'X.csv', sep = '')  #..../2X.csv
   if(!file.exists(rp.index.file)) {
     # init the index. end.date is the first day the index is created.
-    equity <- INIT.INDEX
-    market.value <- equity * index.w
-    volumn <- market.value / price   #??? how to get the price???
+    equity <- index.cfg['init.equity',]
+    price <- ts[end.date,]
+    market.value <- equity * index.w[,'weight']
+    volumn <- as.numeric(market.value / price)
+    # write the volumn, updated equity (index value) to disk
+    # TODO:::::::::::::
   } else {
   # get the intervals (days or weeks) between the last date in the index file and end.date
   # TODO:::

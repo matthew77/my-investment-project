@@ -1,0 +1,6 @@
+cfg,value
+init.equity,10000
+loan,10000
+loan.interest,0.05
+sell.commission,0.001
+buy.commission,0.001
