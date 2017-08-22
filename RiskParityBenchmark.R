@@ -807,6 +807,7 @@ CalcuPRIndex <- function(end.date, lever=2){
     equity <- INIT.INDEX
     market.value <- equity * index.w
     volumn <- market.value / price   #??? how to get the price???
+    
   } else {
   # get the intervals (days or weeks) between the last date in the index file and end.date
   # TODO:::
