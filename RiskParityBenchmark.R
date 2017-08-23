@@ -825,7 +825,7 @@ CalcuPRIndex <- function(end.date, lever=2){
     market.value <- equity * index.w[,'weight']
     volumn <- as.numeric(market.value / price)
     # write the volumn, updated equity (index value) to disk
-    # TODO:::::::::::::
+    # TODO::::::::::::: i am going to Xi'an
 
   } else {
   # get the intervals (days or weeks) between the last date in the index file and end.date
