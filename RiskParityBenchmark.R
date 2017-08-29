@@ -816,17 +816,22 @@ CalcuPRIndex <- function(end.date, lever=2){
   index.cfg <- read.csv(index.cfg.file, row.names = 1)
   # get previous risk parity history ts from file. If the file does not exist, 
   # the it is the first time the RP Index is created.
-  rp.index.file <- paste(OUTPUT.ROOT, 'rp_index', lever, sep = '/')
+  path.index <- paste(OUTPUT.ROOT, 'rp_index', sep = '/')
+  rp.index.file <- paste(path.index, lever, sep = '/')
   rp.index.file <- paste(rp.index.file, 'X.csv', sep = '')  #..../2X.csv
   if(!file.exists(rp.index.file)) {
     # init the index. end.date is the first day the index is created.
     equity <- index.cfg['init.equity',]
     price <- ts[end.date,]
     market.value <- equity * index.w[,'weight']
+    #TODO??? buy --- commission should be paid !!!
     volumn <- as.numeric(market.value / price)
-    # write the volumn, updated equity (index value) to disk
-    # TODO::::::::::::: i am going to Xi'an
-
+    #save the volumn info to disk
+    alloc.info <- data.frame(index.w[,colnames(index.w)!='unleveled.lab'], volumn=volumn)
+    vol.file <- paste(path.index, 'index_alloc.csv', sep = '/')
+    write.csv(alloc.info, vol.file)
+    #save the index(equity) value, and market value.
+    
   } else {
   # get the intervals (days or weeks) between the last date in the index file and end.date
   # TODO:::
