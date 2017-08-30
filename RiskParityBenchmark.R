@@ -15,7 +15,7 @@ COV.COMP.THRESHOLD=1-0.95  #95%
 INIT.PORTFOLIO.MONEY=100000
 INIT.INDEX=10000
 MIN.WINDOW.TO.START=100 #weeks. if the ts data is less than this threashold, then the data should not be included.
-
+TRANSACTION.COST = TRUE
 #DATA.FILES <- new.env()
 #assign('COMM', paste(DATA.ROOT, sep = '\\', 'benchMarkCOMM.csv'))
 #assign('SH50', paste(DATA.ROOT, sep = '\\', 'benchMarkSH50.csv'))
@@ -783,7 +783,8 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
   return(sub.pf.ts)
 }
 
-GetRPAllocForIndex <- function(lever) {
+GetRPAllocForIndex <- function(end.date, lever) {
+  AllocateRPAssetWeight(end.date) #calculate the reference weights allocation
   path <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
   w <- read.csv(path, row.names = 1, sep = ',')
   w[,c('weight', 'w.low', 'w.high')] <- w[,c('weight', 'w.low', 'w.high')] * lever
@@ -808,10 +809,7 @@ GetRPAllocForIndex <- function(lever) {
 
 CalcuPRIndex <- function(end.date, lever=2){
   #load init data and parameters
-  AllocateRPAssetWeight(end.date) #calculate the reference weights allocation
-  index.w <- GetRPAllocForIndex(lever)  # get the weights according to lever, momentum etc...
-  labs <- index.w[,'unleveled.lab']
-  ts <- load.all.prices(labs)
+  end.date.obj <- as.POSIXct(end.date, tz='GMT')
   index.cfg.file <- paste(CONFIG.ROOT, 'index_cfg.csv', sep = '/')
   index.cfg <- read.csv(index.cfg.file, row.names = 1)
   # get previous risk parity history ts from file. If the file does not exist, 
@@ -819,29 +817,59 @@ CalcuPRIndex <- function(end.date, lever=2){
   path.index <- paste(OUTPUT.ROOT, 'rp_index', sep = '/')
   rp.index.file <- paste(path.index, lever, sep = '/')
   rp.index.file <- paste(rp.index.file, 'X.csv', sep = '')  #..../2X.csv
+  vol.file <- paste(path.index, 'index_alloc.csv', sep = '/')
+  ts.all <- load.all.prices()
   if(!file.exists(rp.index.file)) {
     # init the index. end.date is the first day the index is created.
+    print('First time to create Risk Parity index...')
+    index.w <- GetRPAllocForIndex(end.date, lever)  # get the weights according to lever, momentum etc...
+    labs <- index.w[,'unleveled.lab']
+    ts <- ts.all[, labs]
     equity <- index.cfg['init.equity',]
     price <- ts[end.date,]
     market.value <- equity * index.w[,'weight']
-    #TODO??? buy --- commission should be paid !!!
+    if(TRANSACTION.COST) {
+      #buy fee.
+      buy.fee <- market.value * index.cfg['buy.commission',]
+      equity <- equity - buy.fee
+    }
     volumn <- as.numeric(market.value / price)
     #save the volumn info to disk
-    alloc.info <- data.frame(index.w[,colnames(index.w)!='unleveled.lab'], volumn=volumn)
-    vol.file <- paste(path.index, 'index_alloc.csv', sep = '/')
-    write.csv(alloc.info, vol.file)
+    alloc.vol.info <- data.frame(index.w[,colnames(index.w)!='unleveled.lab'], volumn=volumn)
+    write.csv(alloc.vol.info, vol.file)
     #save the index(equity) value, and market value.
-    
+    equity.ts <- zoo(equity, end.date.obj)
+    equity.ts <- as.xts(equity.ts)
+    market.value.ts <- zoo(market.value, end.date.obj)
+    market.value.ts <- as.xts(market.value.ts)
+    index.ts <- cbind(equity.ts, market.value.ts)
+    colnames(index.ts) <- c('equity.value', 'market.value')
+    write.zoo(init.ts, rp.index.file)
   } else {
-  # get the intervals (days or weeks) between the last date in the index file and end.date
-  # TODO:::
-  
+    # load previous created index value ts.
+    index.ts <- read.csv.zoo(rp.index.file, tz='GMT')
+    # get the intervals (days or weeks) between the last date in the index file and end.date
+    hist.days <- index(index.ts)
+    start.pos <- hist.days[length(hist.days)] + as.difftime(1, units = "days")
+    ts.in.range <- ts.all[paste(start.pos, end.date, sep = '/')]
   # loop through the interval. on each day/week:
-  # 1. get the uptodate weight allocation
-  # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
-  #     the total portfolio should be around 200% +/- 10%. 
-  # 3. assemble the ts.
-  # TODO:
+    for(i in 1:rows(ts.in.range)){
+      # 1. get the uptodate weight allocation
+      date.obj <- index(p)
+      index.w <- GetRPAllocForIndex(format(date.obj), lever)  # get the weights according to lever, momentum etc...
+      labs <- index.w[,'unleveled.lab']
+      p <- ts.in.range[i][, labs] #filter out those unused prices.
+      # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
+      #     the total portfolio should be around 200% +/- 10%.
+      # load volumn information
+      alloc.vol.info <- read.csv(vol.file, row.names = 1)
+      # -- get current market value 
+      
+      # -- get current equity value
+      
+      # 3. assemble the ts.
+    
+    }
   }
   # write the results onto the file
 }
