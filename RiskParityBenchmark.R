@@ -798,6 +798,12 @@ GetRPAllocForIndex <- function(end.date, lever) {
   w
 }
 
+RebalanceRPIndex <- function(ref.w, current.w, pre.loan) {
+  # ref.w [data.frame] -- standard w file with 2X lever applied. 
+  # current.w [ts] -- current weight for each asset in the portfolio
+  # TODO:::::::
+}
+
 #TODO: constant lever (2X) benchmark coding. 
 # - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
 # - what is the rule to keep the 2X constant lever? within 10%, so within 210%~190%? 
@@ -826,12 +832,14 @@ CalcuPRIndex <- function(end.date, lever=2){
     labs <- index.w[,'unleveled.lab']
     ts <- ts.all[, labs]
     equity <- index.cfg['init.equity',]
+    loan <- equity*lever - equity   # loan for 2X lever
     price <- ts[end.date,]
     market.value <- equity * index.w[,'weight']
     if(TRANSACTION.COST) {
       #buy fee.
       buy.fee <- market.value * index.cfg['buy.commission',]
       equity <- equity - buy.fee
+      #TODO:::: minus the loan interest
     }
     volumn <- as.numeric(market.value / price)
     #save the volumn info to disk
@@ -842,8 +850,10 @@ CalcuPRIndex <- function(end.date, lever=2){
     equity.ts <- as.xts(equity.ts)
     market.value.ts <- zoo(market.value, end.date.obj)
     market.value.ts <- as.xts(market.value.ts)
-    index.ts <- cbind(equity.ts, market.value.ts)
-    colnames(index.ts) <- c('equity.value', 'market.value')
+    loan.ts <- zoo(loan, end.date.obj)
+    loan.ts <- as.xts(loan.ts)
+    index.ts <- cbind(equity.ts, market.value.ts, loan.ts)
+    colnames(index.ts) <- c('equity.value', 'market.value', 'loan')
     write.zoo(init.ts, rp.index.file)
   } else {
     # load previous created index value ts.
@@ -860,13 +870,21 @@ CalcuPRIndex <- function(end.date, lever=2){
       labs <- index.w[,'unleveled.lab']
       p <- ts.in.range[i][, labs] #filter out those unused prices.
       # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
-      #     the total portfolio should be around 200% +/- 10%.
+      #     the total portfolio should be around 200% +/- 10% (it's redundant).
       # load volumn information
       alloc.vol.info <- read.csv(vol.file, row.names = 1)
       # -- get current market value 
-      
+      current.market.value <- p * alloc.vol.info[, 'volumn']
+      current.market.value.sum <- sum(current.market.value)
       # -- get current equity value
-      
+      pre.index <- index.ts[nrow(index.ts)]
+      pre.equity <- as.numeric(pre.index[,'equity.value'])
+      pre.market.value.sum <- as.numeric(pre.index[,'market.value'])
+      pre.loan <- as.numeric(pre.index[,'loan'])
+      current.equity <- pre.equity + (current.market.value.sum - pre.market.value.sum)
+      # -- rebalance, calculating current weight.
+      w.before.rebalance <- current.market.value/current.equity
+      RebalanceRPIndex(w.before.rebalance, index.w, p)
       # 3. assemble the ts.
     
     }
