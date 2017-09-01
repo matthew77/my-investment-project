@@ -801,7 +801,7 @@ GetRPAllocForIndex <- function(end.date, lever) {
 RebalanceRPIndex <- function(ref.w, current.w, pre.loan) {
   # ref.w [data.frame] -- standard w file with 2X lever applied. 
   # current.w [ts] -- current weight for each asset in the portfolio
-  # TODO:::::::Start here
+  # TODO:::::::Start here!!!
 }
 
 #TODO: constant lever (2X) benchmark coding. 
