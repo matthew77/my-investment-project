@@ -16,6 +16,7 @@ INIT.PORTFOLIO.MONEY=100000
 INIT.INDEX=10000
 MIN.WINDOW.TO.START=100 #weeks. if the ts data is less than this threashold, then the data should not be included.
 TRANSACTION.COST = TRUE
+LOAN.COST = TRUE
 #DATA.FILES <- new.env()
 #assign('COMM', paste(DATA.ROOT, sep = '\\', 'benchMarkCOMM.csv'))
 #assign('SH50', paste(DATA.ROOT, sep = '\\', 'benchMarkSH50.csv'))
@@ -801,7 +802,7 @@ GetRPAllocForIndex <- function(end.date, lever) {
 RebalanceRPIndex <- function(ref.w, current.w, pre.loan) {
   # ref.w [data.frame] -- standard w file with 2X lever applied. 
   # current.w [ts] -- current weight for each asset in the portfolio
-  # TODO:::::::Start here
+  
 }
 
 #TODO: constant lever (2X) benchmark coding. 
@@ -839,6 +840,9 @@ CalcuPRIndex <- function(end.date, lever=2){
       #buy fee.
       buy.fee <- market.value * index.cfg['buy.commission',]
       equity <- equity - buy.fee
+      
+    }
+    if(LOAN.COST) {
       #TODO:::: minus the loan interest
     }
     volumn <- as.numeric(market.value / price)
@@ -864,8 +868,10 @@ CalcuPRIndex <- function(end.date, lever=2){
     ts.in.range <- ts.all[paste(start.pos, end.date, sep = '/')]
   # loop through the interval. on each day/week:
     for(i in 1:rows(ts.in.range)){
+      alloc.vol.info.changed <- FALSE
       # 1. get the uptodate weight allocation
       date.obj <- index(p)
+      print(paste('calculating index on :::::::::::', date.obj))
       index.w <- GetRPAllocForIndex(format(date.obj), lever)  # get the weights according to lever, momentum etc...
       labs <- index.w[,'unleveled.lab']
       p <- ts.in.range[i][, labs] #filter out those unused prices.
@@ -873,6 +879,11 @@ CalcuPRIndex <- function(end.date, lever=2){
       #     the total portfolio should be around 200% +/- 10% (it's redundant).
       # load volumn information
       alloc.vol.info <- read.csv(vol.file, row.names = 1)
+      # check if the weight has been changed this time. if so the weight/volumn file needs to be updated.
+      if(!identical(index.w[, 'weight'], alloc.vol.info[, 'weight'])) {
+        print('-- reference weights have been changed compared with last time!')
+        alloc.vol.info.changed <- TRUE
+      }
       # -- get current market value 
       current.market.value <- p * alloc.vol.info[, 'volumn']
       current.market.value.sum <- sum(current.market.value)
@@ -884,10 +895,43 @@ CalcuPRIndex <- function(end.date, lever=2){
       current.equity <- pre.equity + (current.market.value.sum - pre.market.value.sum)
       # -- rebalance, calculating current weight.
       w.before.rebalance <- current.market.value/current.equity
-      RebalanceRPIndex(w.before.rebalance, index.w, p)
-
+      print(paste('current allocation (weights) is ::::: '), w.before.rebalance)
+      # -- check with asset has exceeded the upper/lower limit.
+      loan.rebalance <- 0
+      commission <- 0
+      for(lab in labs) {
+        asset.w <- as.numeric(w.before.rebalance[, lab])
+        rec <- subset(index.w, unleveled.lab==lab)
+        leveled.lab <- rownames(rec)
+        ref.w.high <- rec$w.high
+        ref.w.low <- rec$w.low
+        ref.w <- rec$weight
+        if(asset.w > ref.w.high || asset.w < ref.w.low) {
+          # exceed the upper/lower bond, rebalance required.
+          gap <- asset.w - ref.w  # POSITIVE = sell asset required; NEGATIVE = buy asset required.
+          money.for.gap <- gap * current.equity  # POSITIVE = return loan; NEGATIVE=borrow loan
+          # calculate the volumn for the rebalance adjustment.
+          asset.price <- as.numeric(p[, lab])
+          volumn.change <- money.for.gap/asset.price
+          print(paste('----', lab, 'exceeds the allocation limit! weight gap:::', gap, '| money:::', money.for.gap, 
+                          '| volumn change:::', volumn.change))
+          # update volumn info
+          alloc.vol.info[leveled.lab, 'volumn'] <- alloc.vol.info[leveled.lab, 'volumn'] + volumn.change
+          alloc.vol.info.changed <- TRUE
+          if(TRANSACTION.COST) {
+            commission <- commission + abs(money.for.gap) * index.cfg['buy.commission',]
+          }
+        }
+      }
+      if(TRANSACTION.COST) {
+        current.equity <- current.equity - commission
+        print(paste('total transaction cost on', date.obj, 'is:::::', commission))
+      }
+      if(LOAN.COST) {
+        #TODO:::: minus the loan interest
+      }
       # 3. assemble the ts.
-    
+      #TODO:::: Next time
     }
   }
   # write the results onto the file
