@@ -885,6 +885,7 @@ CalcuPRIndex <- function(end.date, lever=2){
       # -- rebalance, calculating current weight.
       w.before.rebalance <- current.market.value/current.equity
       RebalanceRPIndex(w.before.rebalance, index.w, p)
+
       # 3. assemble the ts.
     
     }
