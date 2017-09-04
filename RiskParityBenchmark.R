@@ -799,12 +799,6 @@ GetRPAllocForIndex <- function(end.date, lever) {
   w
 }
 
-RebalanceRPIndex <- function(ref.w, current.w, pre.loan) {
-  # ref.w [data.frame] -- standard w file with 2X lever applied. 
-  # current.w [ts] -- current weight for each asset in the portfolio
-  
-}
-
 #TODO: constant lever (2X) benchmark coding. 
 # - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
 # - what is the rule to keep the 2X constant lever? within 10%, so within 210%~190%? 
