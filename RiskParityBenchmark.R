@@ -799,12 +799,6 @@ GetRPAllocForIndex <- function(end.date, lever) {
   w
 }
 
-RebalanceRPIndex <- function(ref.w, current.w, pre.loan) {
-  # ref.w [data.frame] -- standard w file with 2X lever applied. 
-  # current.w [ts] -- current weight for each asset in the portfolio
-  
-}
-
 #TODO: constant lever (2X) benchmark coding. 
 # - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
 # - what is the rule to keep the 2X constant lever? within 10%, so within 210%~190%? 
@@ -873,7 +867,7 @@ CalcuPRIndex <- function(end.date, lever=2){
       date.obj <- index(p)
       print(paste('calculating index on :::::::::::', date.obj))
       index.w <- GetRPAllocForIndex(format(date.obj), lever)  # get the weights according to lever, momentum etc...
-      labs <- index.w[,'unleveled.lab']
+      labs <- index.w[,'unleveled.lab'] #here the labs may contains some new assets, e.g. some assets are removed and others are added.
       p <- ts.in.range[i][, labs] #filter out those unused prices.
       # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
       #     the total portfolio should be around 200% +/- 10% (it's redundant).
@@ -883,6 +877,12 @@ CalcuPRIndex <- function(end.date, lever=2){
       if(!identical(index.w[, 'weight'], alloc.vol.info[, 'weight'])) {
         print('-- reference weights have been changed compared with last time!')
         alloc.vol.info.changed <- TRUE
+        #replace the weight,std,w.low,w.high with newly loaded info in index.w
+        #volumn are all set to -1, since they should be recalculated
+        alloc.vol.info.new <- data.frame(index.w[,colnames(index.w)!='unleveled.lab'], volumn=rep(-1, nrow(index.w)))
+      } else {
+        # just a copy, in case the volumn should be changed, then store the change. 
+        alloc.vol.info.new <- alloc.vol.info
       }
       # -- get current market value 
       current.market.value <- p * alloc.vol.info[, 'volumn']
@@ -900,6 +900,7 @@ CalcuPRIndex <- function(end.date, lever=2){
       loan.rebalance <- 0
       commission <- 0
       for(lab in labs) {
+        #TODO::::??? what if the lab is newly added this time?????
         asset.w <- as.numeric(w.before.rebalance[, lab])
         rec <- subset(index.w, unleveled.lab==lab)
         leveled.lab <- rownames(rec)
@@ -913,8 +914,8 @@ CalcuPRIndex <- function(end.date, lever=2){
           # calculate the volumn for the rebalance adjustment.
           asset.price <- as.numeric(p[, lab])
           volumn.change <- money.for.gap/asset.price
-          print(paste('----', lab, 'exceeds the allocation limit! weight gap:::', gap, '| money:::', money.for.gap, 
-                          '| volumn change:::', volumn.change))
+          print(paste('----', lab, 'exceeds the allocation limit! weight gap :::', gap, '| money gap :::', money.for.gap, 
+                          '| volumn change :::', volumn.change))
           # update volumn info
           alloc.vol.info[leveled.lab, 'volumn'] <- alloc.vol.info[leveled.lab, 'volumn'] + volumn.change
           alloc.vol.info.changed <- TRUE
@@ -930,7 +931,11 @@ CalcuPRIndex <- function(end.date, lever=2){
       if(LOAN.COST) {
         #TODO:::: minus the loan interest
       }
+      print(paste('The lever now is :::', current.market.value.sum/current.equity))
       # 3. assemble the ts.
+      if(alloc.vol.info.changed) {
+        # save the volumn & allocation info onto disk since it has been changed since last time.
+      }
       #TODO:::: Next time
     }
   }
