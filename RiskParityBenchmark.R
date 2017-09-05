@@ -789,14 +789,18 @@ GetRPAllocForIndex <- function(end.date, lever) {
   path <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
   w <- read.csv(path, row.names = 1, sep = ',')
   w[,c('weight', 'w.low', 'w.high')] <- w[,c('weight', 'w.low', 'w.high')] * lever
+  unleveled.rowname <- GetUnleveledRowName(rownames(w))
+  w <- data.frame(w, unleveled.lab=unleveled.rowname, stringsAsFactors = FALSE)
+  w
+}
+
+GetUnleveledRowName <- function(leveled.rn) {
   unleveled.rowname <- NULL
-  leveled.rowname <- rownames(w)
-  for(name in leveled.rowname) {
+  for(name in leveled.rn) {
     unleveled <- remove.label.level(name)
     unleveled.rowname <- append(unleveled.rowname, unleveled)
   }
-  w <- data.frame(w, unleveled.lab=unleveled.rowname, stringsAsFactors = FALSE)
-  w
+  unleveled.rowname
 }
 
 #TODO: constant lever (2X) benchmark coding. 
@@ -873,6 +877,8 @@ CalcuPRIndex <- function(end.date, lever=2){
       #     the total portfolio should be around 200% +/- 10% (it's redundant).
       # load volumn information
       alloc.vol.info <- read.csv(vol.file, row.names = 1)
+      labs.pre <- GetUnleveledRowName(rownames(alloc.vol.info))   # the labs from last time.
+      p.with.labs.pre <- ts.in.range[i][, labs.pre]               # asset prices before adjustment (if any)
       # check if the weight has been changed this time. if so the weight/volumn file needs to be updated.
       if(!identical(index.w[, 'weight'], alloc.vol.info[, 'weight'])) {
         print('-- reference weights have been changed compared with last time!')
@@ -885,7 +891,7 @@ CalcuPRIndex <- function(end.date, lever=2){
         alloc.vol.info.new <- alloc.vol.info
       }
       # -- get current market value 
-      current.market.value <- p * alloc.vol.info[, 'volumn']
+      current.market.value <- p.with.labs.pre * alloc.vol.info[, 'volumn']
       current.market.value.sum <- sum(current.market.value)
       # -- get current equity value
       pre.index <- index.ts[nrow(index.ts)]
@@ -900,27 +906,52 @@ CalcuPRIndex <- function(end.date, lever=2){
       loan.rebalance <- 0
       commission <- 0
       for(lab in labs) {
-        #TODO::::??? what if the lab is newly added this time?????
-        asset.w <- as.numeric(w.before.rebalance[, lab])
         rec <- subset(index.w, unleveled.lab==lab)
         leveled.lab <- rownames(rec)
         ref.w.high <- rec$w.high
         ref.w.low <- rec$w.low
         ref.w <- rec$weight
-        if(asset.w > ref.w.high || asset.w < ref.w.low) {
-          # exceed the upper/lower bond, rebalance required.
-          gap <- asset.w - ref.w  # POSITIVE = sell asset required; NEGATIVE = buy asset required.
-          money.for.gap <- gap * current.equity  # POSITIVE = return loan; NEGATIVE=borrow loan
-          # calculate the volumn for the rebalance adjustment.
-          asset.price <- as.numeric(p[, lab])
+        asset.price <- as.numeric(p[, lab])
+        money.for.gap <- 0
+        # here the lab is uptodate, may be the lab (asset) was not included last time run (because 
+        # the risk parity assets were adjusted)
+        asset.w <- as.numeric(w.before.rebalance[, lab])
+        if(length(asset.w)==0) {
+          #this asset is newly added, so no rebalance need for this asset. just buy in directly
+          money.for.gap <-  ref.w * current.equity
           volumn.change <- money.for.gap/asset.price
-          print(paste('----', lab, 'exceeds the allocation limit! weight gap :::', gap, '| money gap :::', money.for.gap, 
-                          '| volumn change :::', volumn.change))
-          # update volumn info
-          alloc.vol.info[leveled.lab, 'volumn'] <- alloc.vol.info[leveled.lab, 'volumn'] + volumn.change
-          alloc.vol.info.changed <- TRUE
-          if(TRANSACTION.COST) {
-            commission <- commission + abs(money.for.gap) * index.cfg['buy.commission',]
+          print(paste('----', lab, 'is newly added in this time! weight gap :::', ref.w, '| money gap :::', money.for.gap, 
+                      '| volumn change :::', volumn.change))
+          loan.rebalance <- loan.rebalance + money.for.gap
+        } else {
+          # this asset is in the portfolio last time, rebalance maybe needed.
+          if(asset.w > ref.w.high || asset.w < ref.w.low) {
+            # exceed the upper/lower bond, rebalance required.
+            gap <- ref.w - asset.w  # POSITIVE = buy asset required; NEGATIVE = sell asset required.
+            money.for.gap <- gap * current.equity  # POSITIVE = borrow loan; NEGATIVE=return loan
+            # calculate the volumn for the rebalance adjustment.
+            volumn.change <- money.for.gap/asset.price
+            print(paste('----', lab, 'exceeds the allocation limit! weight gap :::', gap, '| money gap :::', money.for.gap, 
+                        '| volumn change :::', volumn.change))
+            # update the loan info. if gap is positive, then borrow loan,
+            # if gap is negative, then return loan.
+            loan.rebalance <- loan.rebalance + money.for.gap
+            # update volumn info
+            alloc.vol.info[leveled.lab, 'volumn'] <- alloc.vol.info[leveled.lab, 'volumn'] + volumn.change
+            alloc.vol.info.changed <- TRUE
+          }
+          # at last, the remaining labs in labs.pre, are those assets that have been removed from 
+          # Risk Parity portfolio. so, those assets should be sold. 
+          labs.pre <- labs.pre[labs.pre!=lab]
+          #TODO::::::::: alloc.vol.info.new ?????????
+        }
+        if(TRANSACTION.COST && money.for.gap != 0) {
+          if(money.for.gap > 0) {
+            # buy commission
+            commission <- commission + money.for.gap * index.cfg['buy.commission',]
+          } else {
+            # sell commission
+            commission <- commission + abs(money.for.gap) * index.cfg['sell.commission',]
           }
         }
       }
