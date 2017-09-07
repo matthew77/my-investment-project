@@ -864,9 +864,16 @@ CalcuPRIndex <- function(end.date, lever=2){
     hist.days <- index(index.ts)
     start.pos <- hist.days[length(hist.days)] + as.difftime(1, units = "days")
     ts.in.range <- ts.all[paste(start.pos, end.date, sep = '/')]
+    # charge loan interest. since:
+    # 1) the duration from last time is known (days). 
+    # 2) the money borrowed (loan) is known
+    if(LOAN.COST) {
+      #TODO:::: minus the loan interest
+    }
   # loop through the interval. on each day/week:
     for(i in 1:rows(ts.in.range)){
-      alloc.vol.info.changed <- FALSE
+      is.ref.w.changed <- FALSE
+      is.rebalanced <- FALSE
       # 1. get the uptodate weight allocation
       date.obj <- index(p)
       print(paste('calculating index on :::::::::::', date.obj))
@@ -882,14 +889,8 @@ CalcuPRIndex <- function(end.date, lever=2){
       # check if the weight has been changed this time. if so the weight/volumn file needs to be updated.
       if(!identical(index.w[, 'weight'], alloc.vol.info[, 'weight'])) {
         print('-- reference weights have been changed compared with last time!')
-        alloc.vol.info.changed <- TRUE
-        #replace the weight,std,w.low,w.high with newly loaded info in index.w
-        #volumn are all set to -1, since they should be recalculated
-        alloc.vol.info.new <- data.frame(index.w[,colnames(index.w)!='unleveled.lab'], volumn=rep(-1, nrow(index.w)))
-      } else {
-        # just a copy, in case the volumn should be changed, then store the change. 
-        alloc.vol.info.new <- alloc.vol.info
-      }
+        is.ref.w.changed <- TRUE
+      } 
       # -- get current market value 
       current.market.value <- p.with.labs.pre * alloc.vol.info[, 'volumn']
       current.market.value.sum <- sum(current.market.value)
@@ -923,6 +924,8 @@ CalcuPRIndex <- function(end.date, lever=2){
           print(paste('----', lab, 'is newly added in this time! weight gap :::', ref.w, '| money gap :::', money.for.gap, 
                       '| volumn change :::', volumn.change))
           loan.rebalance <- loan.rebalance + money.for.gap
+          alloc.vol.info <- rbind(alloc.vol.info, data.frame(rec[,colnames(rec)!='unleveled.lab'], volumn=volumn.change))
+          # is.ref.w.changed <- TRUE    ---MUST be ref weight changed!!!
         } else {
           # this asset is in the portfolio last time, rebalance maybe needed.
           if(asset.w > ref.w.high || asset.w < ref.w.low) {
@@ -938,12 +941,17 @@ CalcuPRIndex <- function(end.date, lever=2){
             loan.rebalance <- loan.rebalance + money.for.gap
             # update volumn info
             alloc.vol.info[leveled.lab, 'volumn'] <- alloc.vol.info[leveled.lab, 'volumn'] + volumn.change
-            alloc.vol.info.changed <- TRUE
+            is.rebalanced <- TRUE
+          } else if(is.ref.w.changed){
+            # why need this check? because there may be the ref weight has been changed, but 
+            # the current asset weight can still be in the new range. in this case, the ref
+            # weight should be updated into alloc.vol.info and save onto disk
+            alloc.vol.info[leveled.lab, c('weight', 'std', 'w.low', 'w.high')] <- 
+              rec[, c('weight', 'std', 'w.low', 'w.high')]
           }
           # at last, the remaining labs in labs.pre, are those assets that have been removed from 
           # Risk Parity portfolio. so, those assets should be sold. 
           labs.pre <- labs.pre[labs.pre!=lab]
-          #TODO::::::::: alloc.vol.info.new ?????????
         }
         if(TRANSACTION.COST && money.for.gap != 0) {
           if(money.for.gap > 0) {
@@ -955,19 +963,29 @@ CalcuPRIndex <- function(end.date, lever=2){
           }
         }
       }
+      # sell the remaining assets in labs.pre, since those assets have been removed from portfolio.
+      for(lab in labs.pre) {
+        money.for.gap <- as.numeric(current.market.value[, lab])
+        loan.rebalance <- loan.rebalance - money.for.gap  # return money
+        if(TRANSACTION.COST) {
+          # sell commission
+          commission <- commission + abs(money.for.gap) * index.cfg['sell.commission',]
+          print(paste('sell all asset:::', lab, 'since it has been removed from Risk Parity Portfolio'))
+        }
+        # remove the asset in alloc.vol.info
+        # TODO:::::??? no way to leveled lab since labs.pre is unleveled. should you leveled all the time!!!
+        #alloc.vol.info <- subset(alloc.vol.info, rownames(alloc.vol.info) != )
+      }
       if(TRANSACTION.COST) {
         current.equity <- current.equity - commission
         print(paste('total transaction cost on', date.obj, 'is:::::', commission))
       }
-      if(LOAN.COST) {
-        #TODO:::: minus the loan interest
-      }
+      
       print(paste('The lever now is :::', current.market.value.sum/current.equity))
       # 3. assemble the ts.
-      if(alloc.vol.info.changed) {
+      if(ref.w.changed) {
         # save the volumn & allocation info onto disk since it has been changed since last time.
       }
-      #TODO:::: Next time
     }
   }
   # write the results onto the file
