@@ -789,18 +789,17 @@ GetRPAllocForIndex <- function(end.date, lever) {
   path <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
   w <- read.csv(path, row.names = 1, sep = ',')
   w[,c('weight', 'w.low', 'w.high')] <- w[,c('weight', 'w.low', 'w.high')] * lever
-  unleveled.rowname <- GetUnleveledRowName(rownames(w))
-  w <- data.frame(w, unleveled.lab=unleveled.rowname, stringsAsFactors = FALSE)
+  # --- No need to return unleveled. every assets should be leveled, because if the assets
+  # are in different level then they should be treated as different assets [All Weather Strategy]
+  #unleveled.rowname <- GetUnleveledRowName(rownames(w))   
+  #w <- data.frame(w, unleveled.lab=unleveled.rowname, stringsAsFactors = FALSE)
   w
 }
 
 GetUnleveledRowName <- function(leveled.rn) {
-  unleveled.rowname <- NULL
-  for(name in leveled.rn) {
-    unleveled <- remove.label.level(name)
-    unleveled.rowname <- append(unleveled.rowname, unleveled)
-  }
-  unleveled.rowname
+  unleveled.rn <- sapply(leveled.rn, remove.label.level)
+  #return a named vector: key is leveled, value is unleveled. that's very cool!!!
+  unleveled.rn
 }
 
 #TODO: constant lever (2X) benchmark coding. 
@@ -828,8 +827,8 @@ CalcuPRIndex <- function(end.date, lever=2){
     # init the index. end.date is the first day the index is created.
     print('First time to create Risk Parity index...')
     index.w <- GetRPAllocForIndex(end.date, lever)  # get the weights according to lever, momentum etc...
-    labs <- index.w[,'unleveled.lab']
-    ts <- ts.all[, labs]
+    unleveled.labs <- GetUnleveledRowName(rownames(index.w))
+    ts <- ts.all[, unleveled.labs]
     equity <- index.cfg['init.equity',]
     loan <- equity*lever - equity   # loan for 2X lever
     price <- ts[end.date,]
@@ -845,9 +844,9 @@ CalcuPRIndex <- function(end.date, lever=2){
     }
     volumn <- as.numeric(market.value / price)
     #save the volumn info to disk
-    alloc.vol.info <- data.frame(index.w[,colnames(index.w)!='unleveled.lab'], volumn=volumn)
+    alloc.vol.info <- data.frame(index.w, volumn=volumn)
     write.csv(alloc.vol.info, vol.file)
-    #save the index(equity) value, and market value.
+    #save the ts -- index(equity) value, market value, loan.
     equity.ts <- zoo(equity, end.date.obj)
     equity.ts <- as.xts(equity.ts)
     market.value.ts <- zoo(market.value, end.date.obj)
@@ -860,45 +859,47 @@ CalcuPRIndex <- function(end.date, lever=2){
   } else {
     # load previous created index value ts.
     index.ts <- read.csv.zoo(rp.index.file, tz='GMT')
+    index.ts <- as.xts(index.ts)
     # get the intervals (days or weeks) between the last date in the index file and end.date
     hist.days <- index(index.ts)
     start.pos <- hist.days[length(hist.days)] + as.difftime(1, units = "days")
     ts.in.range <- ts.all[paste(start.pos, end.date, sep = '/')]
-    # charge loan interest. since:
-    # 1) the duration from last time is known (days). 
-    # 2) the money borrowed (loan) is known
-    if(LOAN.COST) {
-      #TODO:::: minus the loan interest
-    }
+    index.ts.to.append <- NULL
   # loop through the interval. on each day/week:
-    for(i in 1:rows(ts.in.range)){
+    for(i in 1:nrows(ts.in.range)){
       is.ref.w.changed <- FALSE
       is.rebalanced <- FALSE
       # 1. get the uptodate weight allocation
-      date.obj <- index(p)
       print(paste('calculating index on :::::::::::', date.obj))
       index.w <- GetRPAllocForIndex(format(date.obj), lever)  # get the weights according to lever, momentum etc...
-      labs <- index.w[,'unleveled.lab'] #here the labs may contains some new assets, e.g. some assets are removed and others are added.
-      p <- ts.in.range[i][, labs] #filter out those unused prices.
+      unleveled.labs <- GetUnleveledRowName(rownames(index.w))  #here the labs may contains some new assets, e.g. some assets are removed and others are added.
+      p <- ts.in.range[i][, unleveled.labs] # filter out those unused prices.
+      date.obj <- index(p)
       # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
       #     the total portfolio should be around 200% +/- 10% (it's redundant).
       # load volumn information
       alloc.vol.info <- read.csv(vol.file, row.names = 1)
-      labs.pre <- GetUnleveledRowName(rownames(alloc.vol.info))   # the labs from last time.
-      p.with.labs.pre <- ts.in.range[i][, labs.pre]               # asset prices before adjustment (if any)
+      unleveled.labs.pre <- GetUnleveledRowName(rownames(alloc.vol.info))   # the labs from last time.
+      leveled.labs.pre <- names(unleveled.labs.pre)
+      p.with.labs.pre <- ts.in.range[i][, unleveled.labs.pre]               # asset prices before adjustment (if any)
       # check if the weight has been changed this time. if so the weight/volumn file needs to be updated.
       if(!identical(index.w[, 'weight'], alloc.vol.info[, 'weight'])) {
         print('-- reference weights have been changed compared with last time!')
         is.ref.w.changed <- TRUE
       } 
       # -- get current market value 
-      current.market.value <- p.with.labs.pre * alloc.vol.info[, 'volumn']
-      current.market.value.sum <- sum(current.market.value)
+      market.value.before.rb <- as.numeric(p.with.labs.pre * alloc.vol.info[, 'volumn'])
+      names(market.value.before.rb) <- names(unleveled.labs.pre)  # need leveled asset name for each asset's weight
+      market.value.before.rb.sum <- sum(market.value.before.rb)
       # -- get current equity value
       pre.index <- index.ts[nrow(index.ts)]
       pre.equity <- as.numeric(pre.index[,'equity.value'])
       pre.market.value.sum <- as.numeric(pre.index[,'market.value'])
       pre.loan <- as.numeric(pre.index[,'loan'])
+      if(LOAN.COST) {
+        #TODO:::: minus the loan interest
+        #charge the interest from last time to current time, with the loan number as the principle.
+      }
       current.equity <- pre.equity + (current.market.value.sum - pre.market.value.sum)
       # -- rebalance, calculating current weight.
       w.before.rebalance <- current.market.value/current.equity
@@ -906,17 +907,16 @@ CalcuPRIndex <- function(end.date, lever=2){
       # -- check with asset has exceeded the upper/lower limit.
       loan.rebalance <- 0
       commission <- 0
-      for(lab in labs) {
-        rec <- subset(index.w, unleveled.lab==lab)
-        leveled.lab <- rownames(rec)
+      for(lab in names(unleveled.labs)) {   # names(lab) returns the leveled lab.
+        rec <- index.w[lab,] 
         ref.w.high <- rec$w.high
         ref.w.low <- rec$w.low
         ref.w <- rec$weight
-        asset.price <- as.numeric(p[, lab])
+        asset.price <- as.numeric(p[, unleveled.labs[lab]])
         money.for.gap <- 0
         # here the lab is uptodate, may be the lab (asset) was not included last time run (because 
         # the risk parity assets were adjusted)
-        asset.w <- as.numeric(w.before.rebalance[, lab])
+        asset.w <- as.numeric(w.before.rebalance[lab])
         if(length(asset.w)==0) {
           #this asset is newly added, so no rebalance need for this asset. just buy in directly
           money.for.gap <-  ref.w * current.equity
@@ -924,7 +924,8 @@ CalcuPRIndex <- function(end.date, lever=2){
           print(paste('----', lab, 'is newly added in this time! weight gap :::', ref.w, '| money gap :::', money.for.gap, 
                       '| volumn change :::', volumn.change))
           loan.rebalance <- loan.rebalance + money.for.gap
-          alloc.vol.info <- rbind(alloc.vol.info, data.frame(rec[,colnames(rec)!='unleveled.lab'], volumn=volumn.change))
+          #update volumn info
+          alloc.vol.info <- rbind(alloc.vol.info, data.frame(rec, volumn=volumn.change))
           # is.ref.w.changed <- TRUE    ---MUST be ref weight changed!!!
         } else {
           # this asset is in the portfolio last time, rebalance maybe needed.
@@ -940,18 +941,18 @@ CalcuPRIndex <- function(end.date, lever=2){
             # if gap is negative, then return loan.
             loan.rebalance <- loan.rebalance + money.for.gap
             # update volumn info
-            alloc.vol.info[leveled.lab, 'volumn'] <- alloc.vol.info[leveled.lab, 'volumn'] + volumn.change
+            alloc.vol.info[lab, 'volumn'] <- alloc.vol.info[lab, 'volumn'] + volumn.change
             is.rebalanced <- TRUE
           } else if(is.ref.w.changed){
             # why need this check? because there may be the ref weight has been changed, but 
             # the current asset weight can still be in the new range. in this case, the ref
             # weight should be updated into alloc.vol.info and save onto disk
-            alloc.vol.info[leveled.lab, c('weight', 'std', 'w.low', 'w.high')] <- 
+            alloc.vol.info[lab, c('weight', 'std', 'w.low', 'w.high')] <- 
               rec[, c('weight', 'std', 'w.low', 'w.high')]
           }
           # at last, the remaining labs in labs.pre, are those assets that have been removed from 
           # Risk Parity portfolio. so, those assets should be sold. 
-          labs.pre <- labs.pre[labs.pre!=lab]
+          leveled.labs.pre <- leveled.labs.pre[leveled.labs.pre!=lab]
         }
         if(TRANSACTION.COST && money.for.gap != 0) {
           if(money.for.gap > 0) {
@@ -964,8 +965,8 @@ CalcuPRIndex <- function(end.date, lever=2){
         }
       }
       # sell the remaining assets in labs.pre, since those assets have been removed from portfolio.
-      for(lab in labs.pre) {
-        money.for.gap <- as.numeric(current.market.value[, lab])
+      for(lab in leveled.labs.pre) {
+        money.for.gap <- as.numeric(current.market.value[lab])
         loan.rebalance <- loan.rebalance - money.for.gap  # return money
         if(TRANSACTION.COST) {
           # sell commission
@@ -973,22 +974,41 @@ CalcuPRIndex <- function(end.date, lever=2){
           print(paste('sell all asset:::', lab, 'since it has been removed from Risk Parity Portfolio'))
         }
         # remove the asset in alloc.vol.info
-        # TODO:::::??? no way to leveled lab since labs.pre is unleveled. should you leveled all the time!!!
-        #alloc.vol.info <- subset(alloc.vol.info, rownames(alloc.vol.info) != )
+        alloc.vol.info <- subset(alloc.vol.info, rownames(alloc.vol.info) !=lab )
       }
+      # update loan number
+      loan.after.rb <- pre.loan + loan.rebalance
       if(TRANSACTION.COST) {
         current.equity <- current.equity - commission
         print(paste('total transaction cost on', date.obj, 'is:::::', commission))
       }
-      
-      print(paste('The lever now is :::', current.market.value.sum/current.equity))
-      # 3. assemble the ts.
-      if(ref.w.changed) {
+      # 3. save the updated volumn file.
+      if(is.ref.w.changed || is.rebalanced) {
         # save the volumn & allocation info onto disk since it has been changed since last time.
+        rename.to <- paste(vol.file, end.date, sep = '.')
+        file.rename(vol.file, rename.to)
+        write.csv(alloc.vol.info, vol.file)
       }
-    }
-  }
-  # write the results onto the file
+      # calculate the market after rebalance. reorder the sequence of the assets to match
+      # the asset price ts (the column sequence.)
+      volumn.after.rb <- alloc.vol.info[names(unleveled.labs), 'volumn']
+      market.value.after.rb <- as.numeric(p * volumn.after.rb)
+      market.value.after.rb.sum <- sum(market.value.after.rb)
+      print(paste('The lever now is :::', market.value.after.rb.sum/current.equity))
+      # 4. assemble the ts.
+      equity.ts <- zoo(current.equity, date.obj)
+      equity.ts <- as.xts(equity.ts)
+      market.value.ts <- zoo(market.value.after.rb.sum, date.obj)
+      market.value.ts <- as.xts(market.value.ts)
+      loan.ts <- zoo(loan.after.rb, date.obj)
+      loan.ts <- as.xts(loan.ts)
+      tmp.index.ts <- cbind(equity.ts, market.value.ts, loan.ts)
+      colnames(index.ts) <- c('equity.value', 'market.value', 'loan')
+      index.ts.to.append <- rbind(index.ts.to.append, tmp.index.ts)
+    }# end for
+    # write the results onto the file
+    write.zoo(index.ts.to.append, rp.index.file, append = TRUE, col.names = FALSE)
+  }# end processing.
 }
 
 ############## MAIN #####################
