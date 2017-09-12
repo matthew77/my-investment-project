@@ -79,7 +79,9 @@ load.all.prices <- function (label = 'all') {
   colnames(ts) <- labs
   #trim and interpolation NA data
   ts <- na.trim(ts)
-  ts <- na.approx(ts)
+  #ts <- na.approx(ts)
+  ts <- na.omit(ts)
+  ts
 }
 
 remove.label.level <- function(leveled.label) {
@@ -423,12 +425,13 @@ load.sub.pf <- function(lab) {
   out <- tryCatch({
       filename <- paste(lab, 'csv', sep = '.')
       path <- paste(OUTPUT.ROOT, 'sub_netvalue', filename, sep = '/')
-      sub.pf.value <- read.csv.zoo(path, format="%Y/%m/%d", tz='GMT')
+      sub.pf.value <- read.csv.zoo(path, format="%Y-%m-%d", tz='GMT')
       sub.pf.value <- as.xts(sub.pf.value)
       path <- paste(OUTPUT.ROOT, 'sub_portfolio', filename, sep = '/')
       sub.pf.cfg <- read.csv(path, row.names = 1, sep = ',')
       rs <- list(sub.pf.value, sub.pf.cfg)
       names(rs) <- c('value', 'cfg')
+      rs
     },
     error=function(cond){
       print(paste('sub portfolio', lab, 'does not exist', sep=' '))
@@ -746,7 +749,8 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
     colnames(ts) <- labs
     #trim and interpolation NA data
     ts <- na.trim(ts)
-    ts <- na.approx(ts)
+    #ts <- na.approx(ts)
+    ts <- na.omit(ts)
     ### use the sub portfolio ts matrix to construct the current level portfolio net value. 
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
@@ -784,15 +788,17 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
   return(sub.pf.ts)
 }
 
-GetRPAllocForIndex <- function(end.date, lever) {
+GetRPAllocForIndex <- function(end.date, lever, std.range=2) {
+  # in the 1st phase to get the standard asset allocation, std=1.
+  # in the 2nd phase to get index asset allocation, the std will be set to 2, 
+  # which allow a broader range of fluctuation. 2 means sqrt(4) -- about a monthly std
   AllocateRPAssetWeight(end.date) #calculate the reference weights allocation
   path <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
   w <- read.csv(path, row.names = 1, sep = ',')
-  w[,c('weight', 'w.low', 'w.high')] <- w[,c('weight', 'w.low', 'w.high')] * lever
-  # --- No need to return unleveled. every assets should be leveled, because if the assets
-  # are in different level then they should be treated as different assets [All Weather Strategy]
-  #unleveled.rowname <- GetUnleveledRowName(rownames(w))   
-  #w <- data.frame(w, unleveled.lab=unleveled.rowname, stringsAsFactors = FALSE)
+  w[, 'weight'] <- w[, 'weight'] * lever
+  # std.range=2 equivalent to monthly std 67% monthes in the range?!
+  w[, 'w.low'] <- w[, 'weight'] - std.range * w[, 'std'] * w[, 'weight']
+  w[, 'w.high'] <- w[, 'weight'] + std.range * w[, 'std'] * w[, 'weight']
   w
 }
 
@@ -802,15 +808,7 @@ GetUnleveledRowName <- function(leveled.rn) {
   unleveled.rn
 }
 
-#TODO: constant lever (2X) benchmark coding. 
-# - 10000rmb as equity. initial market value should be 20000. and the init benchmark index will be 10000
-# - what is the rule to keep the 2X constant lever? within 10%, so within 210%~190%? 
-# - I will suggest weekly run (using weekly data)
-# !!!How to put the momentum factor into the process??? A obvious question for momentum is that:
-# 1 million bond and 1 millon stock has very different risk. you cannot simply short the 1 million 
-# in bond and then simple long 1 million in stock. that will put too much in stock. so then answer may be 
-# run the exe.optim with specified risk allocation. !!!???
-
+#constant lever (2X) benchmark coding. 
 CalcuPRIndex <- function(end.date, lever=2){
   #load init data and parameters
   end.date.obj <- as.POSIXct(end.date, tz='GMT')
@@ -833,14 +831,15 @@ CalcuPRIndex <- function(end.date, lever=2){
     loan <- equity*lever - equity   # loan for 2X lever
     price <- ts[end.date,]
     market.value <- equity * index.w[,'weight']
+    market.value.sum <- sum(market.value)
     if(TRANSACTION.COST) {
       #buy fee.
-      buy.fee <- market.value * index.cfg['buy.commission',]
+      buy.fee <- market.value.sum * index.cfg['buy.commission',]
       equity <- equity - buy.fee
       
     }
     if(LOAN.COST) {
-      #TODO:::: minus the loan interest
+      #TODO:::: minus the loan interest, should be ZERO right?
     }
     volumn <- as.numeric(market.value / price)
     #save the volumn info to disk
@@ -849,32 +848,35 @@ CalcuPRIndex <- function(end.date, lever=2){
     #save the ts -- index(equity) value, market value, loan.
     equity.ts <- zoo(equity, end.date.obj)
     equity.ts <- as.xts(equity.ts)
-    market.value.ts <- zoo(market.value, end.date.obj)
+    market.value.ts <- zoo(market.value.sum, end.date.obj)
     market.value.ts <- as.xts(market.value.ts)
     loan.ts <- zoo(loan, end.date.obj)
     loan.ts <- as.xts(loan.ts)
     index.ts <- cbind(equity.ts, market.value.ts, loan.ts)
     colnames(index.ts) <- c('equity.value', 'market.value', 'loan')
-    write.zoo(init.ts, rp.index.file)
+    write.zoo(index.ts, rp.index.file, sep = ',')
+    print('initailize RP index... DONE!!!')
   } else {
     # load previous created index value ts.
-    index.ts <- read.csv.zoo(rp.index.file, tz='GMT')
+    index.ts <- read.csv.zoo(rp.index.file, format="%Y-%m-%d",tz='GMT')
     index.ts <- as.xts(index.ts)
     # get the intervals (days or weeks) between the last date in the index file and end.date
     hist.days <- index(index.ts)
+    print(paste('The RP Index ended last time at --- ', hist.days[length(hist.days)]))
     start.pos <- hist.days[length(hist.days)] + as.difftime(1, units = "days")
     ts.in.range <- ts.all[paste(start.pos, end.date, sep = '/')]
-    index.ts.to.append <- NULL
+    #index.ts.to.append <- NULL
   # loop through the interval. on each day/week:
-    for(i in 1:nrows(ts.in.range)){
+    for(i in 1:nrow(ts.in.range)){
       is.ref.w.changed <- FALSE
       is.rebalanced <- FALSE
       # 1. get the uptodate weight allocation
+      p <- ts.in.range[i]
+      date.obj <- index(p)
       print(paste('calculating index on :::::::::::', date.obj))
       index.w <- GetRPAllocForIndex(format(date.obj), lever)  # get the weights according to lever, momentum etc...
       unleveled.labs <- GetUnleveledRowName(rownames(index.w))  #here the labs may contains some new assets, e.g. some assets are removed and others are added.
-      p <- ts.in.range[i][, unleveled.labs] # filter out those unused prices.
-      date.obj <- index(p)
+      p <- p[, unleveled.labs] # filter out those unused prices.
       # 2. rebalance according to the lever(2X), detailed rebalance information will be recorded.
       #     the total portfolio should be around 200% +/- 10% (it's redundant).
       # load volumn information
@@ -883,7 +885,8 @@ CalcuPRIndex <- function(end.date, lever=2){
       leveled.labs.pre <- names(unleveled.labs.pre)
       p.with.labs.pre <- ts.in.range[i][, unleveled.labs.pre]               # asset prices before adjustment (if any)
       # check if the weight has been changed this time. if so the weight/volumn file needs to be updated.
-      if(!identical(index.w[, 'weight'], alloc.vol.info[, 'weight'])) {
+      if(!identical(round(index.w[, 'weight'], digits = 4), 
+                    round(alloc.vol.info[, 'weight'], digits = 4))) {
         print('-- reference weights have been changed compared with last time!')
         is.ref.w.changed <- TRUE
       } 
@@ -891,6 +894,7 @@ CalcuPRIndex <- function(end.date, lever=2){
       market.value.before.rb <- as.numeric(p.with.labs.pre * alloc.vol.info[, 'volumn'])
       names(market.value.before.rb) <- names(unleveled.labs.pre)  # need leveled asset name for each asset's weight
       market.value.before.rb.sum <- sum(market.value.before.rb)
+      print(paste('   calculating current market value (before rebalance) ::: ', market.value.before.rb.sum))
       # -- get current equity value
       pre.index <- index.ts[nrow(index.ts)]
       pre.equity <- as.numeric(pre.index[,'equity.value'])
@@ -900,10 +904,11 @@ CalcuPRIndex <- function(end.date, lever=2){
         #TODO:::: minus the loan interest
         #charge the interest from last time to current time, with the loan number as the principle.
       }
-      current.equity <- pre.equity + (current.market.value.sum - pre.market.value.sum)
+      current.equity <- pre.equity + (market.value.before.rb.sum - pre.market.value.sum)
+      print(paste('   calculating current market Equity ::: ', current.equity))
       # -- rebalance, calculating current weight.
-      w.before.rebalance <- current.market.value/current.equity
-      print(paste('current allocation (weights) is ::::: '), w.before.rebalance)
+      w.before.rebalance <- market.value.before.rb/current.equity
+      #print(paste('current allocation (weights) is ::::: ', w.before.rebalance))
       # -- check with asset has exceeded the upper/lower limit.
       loan.rebalance <- 0
       commission <- 0
@@ -966,7 +971,7 @@ CalcuPRIndex <- function(end.date, lever=2){
       }
       # sell the remaining assets in labs.pre, since those assets have been removed from portfolio.
       for(lab in leveled.labs.pre) {
-        money.for.gap <- as.numeric(current.market.value[lab])
+        money.for.gap <- as.numeric(market.value.before.rb[lab])
         loan.rebalance <- loan.rebalance - money.for.gap  # return money
         if(TRANSACTION.COST) {
           # sell commission
@@ -985,11 +990,11 @@ CalcuPRIndex <- function(end.date, lever=2){
       # 3. save the updated volumn file.
       if(is.ref.w.changed || is.rebalanced) {
         # save the volumn & allocation info onto disk since it has been changed since last time.
-        rename.to <- paste(vol.file, end.date, sep = '.')
+        rename.to <- paste(vol.file, format(date.obj), sep = '.')
         file.rename(vol.file, rename.to)
         write.csv(alloc.vol.info, vol.file)
       }
-      # calculate the market after rebalance. reorder the sequence of the assets to match
+      # calculate the market value after rebalance. reorder the sequence of the assets to match
       # the asset price ts (the column sequence.)
       volumn.after.rb <- alloc.vol.info[names(unleveled.labs), 'volumn']
       market.value.after.rb <- as.numeric(p * volumn.after.rb)
@@ -1003,30 +1008,19 @@ CalcuPRIndex <- function(end.date, lever=2){
       loan.ts <- zoo(loan.after.rb, date.obj)
       loan.ts <- as.xts(loan.ts)
       tmp.index.ts <- cbind(equity.ts, market.value.ts, loan.ts)
-      colnames(index.ts) <- c('equity.value', 'market.value', 'loan')
-      index.ts.to.append <- rbind(index.ts.to.append, tmp.index.ts)
+      #colnames(tmp.index.ts) <- c('equity.value', 'market.value', 'loan')
+      #index.ts.to.append <- rbind(index.ts.to.append, tmp.index.ts)
+      write.zoo(tmp.index.ts, rp.index.file, sep = ',', append = TRUE, col.names = FALSE)
     }# end for
     # write the results onto the file
-    write.zoo(index.ts.to.append, rp.index.file, append = TRUE, col.names = FALSE)
+    #write.zoo(index.ts.to.append, rp.index.file, sep = ',', append = TRUE, col.names = FALSE)
   }# end processing.
 }
 
 ############## MAIN #####################
 
 ############## TEST #####################
-#TODO: testing:
-# 1. very simple senario test. Only 2 asset (CYB, SH50) make sure the whole process is OK.
-  #end.date <- '2016-06-01'
-  #rp.ts <- AllocateRPAssetWeight(end.date)
-  #DONE!
-# 2. 3 asset with same currency
-#end.date <- '2016-06-01'
-#rp.ts <- AllocateRPAssetWeight(end.date)
-#DONE!
-# 3. 3 asset with different currency
-#end.date <- '2016-06-01'
-#rp.ts <- AllocateRPAssetWeight(end.date)
-#DONE!
-# 4. 3 level tree e.g. stock contains us stock (sp500, nasdaq), china stock(CYB, SH50).
-#end.date <- '2016-06-01'
-#rp.ts <- AllocateRPAssetWeight(end.date)
+# init index
+#CalcuPRIndex('2016-06-06')
+# next time run
+CalcuPRIndex('2017-06-23')
