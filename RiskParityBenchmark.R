@@ -624,7 +624,7 @@ CalcuRPTS <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date, in
       if(cov.changed(current.sub.ts, pre.date, format(date.obj), time.window = window)) {
         print(paste(parent.lab, ' --- covariance matrix has been changed since last time'))
         # need a rebalance, since the weights of each asset has been changed.
-        rts <- get.pre.n.years.rt(ts, format(date.obj))
+        rts <- get.pre.n.years.rt(current.sub.ts, format(date.obj))
         # run the excel solver like program to get the new weights.
         new.weights <- exe.optim(rts$cov)
         #update the new weights in cfg
@@ -655,7 +655,7 @@ UpdateCovChangeDate <- function(lab, date.str){
     #rename file to keep the cov change records.
     cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
     #bug fix. is.null not correct;;; when only one record in df, the rowname is very wired.better to us subset subset(rec, rownames(rec)=='stock')
-    rec.date <- subset(cov.date, colnames(cov.date)==lab)
+    rec.date <- subset(cov.date, rownames(cov.date)==lab)
     if (nrow(rec.date)==0) {
       # this record is new, so just append it into the data.frame.
       rec <- data.frame(date = date.str, row.names = lab, stringsAsFactors = FALSE)
@@ -773,7 +773,7 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
       # if changed, then rename the old one and save the new one.
       pre.pf.alloc.file <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
       pre.pf.alloc <- LoadCSVWithLabelAsRowName(pre.pf.alloc.file)
-      if(!identical(pre.pf.alloc, pf.alloc)) {
+      if(!identical(round(pre.pf.alloc, digits = 4), round(pf.alloc, digits = 4))) {
         #rename the previous created csv and save a new CSV.
         if(file.exists(pre.pf.alloc.file)) {
           # rename the existing file
@@ -1010,6 +1010,7 @@ CalcuPRIndex <- function(end.date, lever=2){
       tmp.index.ts <- cbind(equity.ts, market.value.ts, loan.ts)
       #colnames(tmp.index.ts) <- c('equity.value', 'market.value', 'loan')
       #index.ts.to.append <- rbind(index.ts.to.append, tmp.index.ts)
+      index.ts <- rbind(index.ts, tmp.index.ts)
       write.zoo(tmp.index.ts, rp.index.file, sep = ',', append = TRUE, col.names = FALSE)
     }# end for
     # write the results onto the file
