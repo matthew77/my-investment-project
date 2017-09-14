@@ -1024,3 +1024,4 @@ CalcuPRIndex <- function(end.date, lever=2){
 #CalcuPRIndex('2016-06-06')
 # next time run
 CalcuPRIndex('2017-06-23')
+
