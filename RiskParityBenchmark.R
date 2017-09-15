@@ -773,7 +773,7 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
       # if changed, then rename the old one and save the new one.
       pre.pf.alloc.file <- paste(OUTPUT.ROOT, 'portfolio.csv', sep = '/')
       pre.pf.alloc <- LoadCSVWithLabelAsRowName(pre.pf.alloc.file)
-      if(!identical(round(pre.pf.alloc, digits = 4), round(pf.alloc, digits = 4))) {
+      if(is.null(pre.pf.alloc) || !identical(round(pre.pf.alloc, digits = 4), round(pf.alloc, digits = 4))) {
         #rename the previous created csv and save a new CSV.
         if(file.exists(pre.pf.alloc.file)) {
           # rename the existing file
@@ -922,7 +922,7 @@ CalcuPRIndex <- function(end.date, lever=2){
         # here the lab is uptodate, may be the lab (asset) was not included last time run (because 
         # the risk parity assets were adjusted)
         asset.w <- as.numeric(w.before.rebalance[lab])
-        if(length(asset.w)==0) {
+        if(is.na(asset.w) || length(asset.w)==0) {
           #this asset is newly added, so no rebalance need for this asset. just buy in directly
           money.for.gap <-  ref.w * current.equity
           volumn.change <- money.for.gap/asset.price
@@ -1021,8 +1021,8 @@ CalcuPRIndex <- function(end.date, lever=2){
 ############## MAIN #####################
 
 ############## TEST #####################
-# init index
-#CalcuPRIndex('2016-06-06')
-# next time run
-CalcuPRIndex('2017-06-23')
+
+############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
+# 1. edit cfg/structure.csv file, adding/deleting the assets
+# 2. in output/sub_netvalue, delete the related ts file.
 
