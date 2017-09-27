@@ -46,19 +46,19 @@ get.log.rt <- function(prices) {#Find R: logrets:
 }
 
 ###
-load.all.prices <- function (label = 'all') {
+load.all.prices <- function (label = 'all', root.path = DATA.ROOT) {
   #load all the prices from the data source folder. 
   files <- NULL
   names <- NULL
   if ('all' %in% label) {
-    files <- list.files(path = DATA.ROOT, full.names = TRUE, 
+    files <- list.files(path = root.path, full.names = TRUE, 
              recursive = FALSE, include.dirs = FALSE, pattern = "*.csv")
-    names <- list.files(path = DATA.ROOT, full.names = FALSE, 
+    names <- list.files(path = root.path, full.names = FALSE, 
             recursive = FALSE, include.dirs = FALSE, pattern = "*.csv")
   } else {
     for(tmplab in label) {
       tmplab <- remove.label.level(tmplab)
-      files <- append(files, paste(DATA.ROOT, '/', tmplab, '.csv', sep=''))
+      files <- append(files, paste(root.path, '/', tmplab, '.csv', sep=''))
       names <- append(names, paste(label, '.csv', sep=''))
     }
   }
@@ -320,13 +320,13 @@ get.sub.lables <- function(lab) {
 #  w.target
 #}
 
-convert.to.target.currency <- function(from, to, ts){
+ConvertToTargetCurrency <- function(from, to, ts, currency.pair.path = DATA.ROOT){
   #from/to -- 3 characters for currency e.g. CNH, USD
   lab <- paste(from, to, sep = '')
   currency <- NULL
   is.reverse <- FALSE
   tryCatch({
-      currency <- load.all.prices(lab)
+      currency <- load.all.prices(lab, currency.pair.path)
     },
     error=function(cond){
       print (paste('currency', lab, 'does not exist', sep=' '))
@@ -339,7 +339,7 @@ convert.to.target.currency <- function(from, to, ts){
     lab <- paste(to, from, sep = '')
     tryCatch(
       {
-        currency <- load.all.prices(lab)
+        currency <- load.all.prices(lab, currency.pair.path)
         is.reverse <- TRUE
       },
       error=function(cond){
@@ -737,7 +737,7 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
       tmp.ts <- AllocateRPAssetWeight(end.date, sublab)
       #convert to target currency
       if(convert.from != convert.to) {
-        tmp.ts <- convert.to.target.currency(convert.from, convert.to, tmp.ts)
+        tmp.ts <- ConvertToTargetCurrency(convert.from, convert.to, tmp.ts)
       }
       # combine the different assets' ts in the same category, e.g. stock: sp500, hs300
       if (is.null(ts)) {
@@ -1019,6 +1019,18 @@ CalcuPRIndex <- function(end.date, lever=2){
 }
 
 ############## MAIN #####################
+
+############## TOOLs #####################
+ConvertTSCurrency <- function(lab, input.path, 
+                                to.currency='cny', output.path=DATA.ROOT) {
+  from.currency <- get.fx.lab(lab)
+  source.ts <- load.all.prices(lab, input.path)
+  target.ts <- ConvertToTargetCurrency(from.currency, to.currency, source.ts, 
+                                       currency.pair.path = input.path)
+  output.file.name <- tolower(substr(lab, 1, (nchar(lab)-4)))
+  output.file <- paste(output.path, output.file.name, sep = '/')
+  write.zoo(target.ts, output.file, sep = ',')
+}
 
 ############## TEST #####################
 
