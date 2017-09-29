@@ -1,0 +1,12 @@
+asset_name,level,desc
+stock,2, level 2 for stock
+bond.usd,2, level 2 for bond
+comm.usd,2, level 2 for commodity
+stock_SP500.usd,3, level 3 for stock leaf
+stock_chstock,3, level 3 for stock
+bond.usd_US10Y.usd,3, level 3 for bond leaf
+bond.usd_US2Y.usd,3, level 3 for bond leaf
+comm.usd_GSCI.usd,3, level 3 for comm leaf
+comm.usd_GOLD.usd,3, level 3 for comm leaf
+stock_chstock_CYB,4, level 4 for stock leaf
+stock_chstock_SH50,4, level 4 for stock leaf

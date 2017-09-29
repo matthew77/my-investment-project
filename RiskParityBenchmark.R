@@ -1028,9 +1028,27 @@ ConvertTSCurrency <- function(lab, input.path,
   target.ts <- ConvertToTargetCurrency(from.currency, to.currency, source.ts, 
                                        currency.pair.path = input.path)
   output.file.name <- tolower(substr(lab, 1, (nchar(lab)-4)))
+  output.file.name <- paste(output.file.name, 'csv', sep = '.')
   output.file <- paste(output.path, output.file.name, sep = '/')
   write.zoo(target.ts, output.file, sep = ',')
 }
+
+#convert
+input.path <- paste(DATA.ROOT, 'back', sep = '/')
+# EUStoxx50.eur
+ConvertTSCurrency('EUStoxx50.eur', input.path)
+# EUGov0710Bond.eur
+ConvertTSCurrency('EUGov0710Bond.eur', input.path)
+# AU10YGovBond.aud
+ConvertTSCurrency('AU10YGovBond.aud', input.path)
+# ASX200.aud
+ConvertTSCurrency('ASX200.aud', input.path)
+# SP500.usd
+ConvertTSCurrency('SP500.usd', input.path)
+# US10Y.usd
+ConvertTSCurrency('US10Y.usd', input.path)
+# GSCI.usd
+ConvertTSCurrency('GSCI.usd', input.path)
 
 ############## TEST #####################
 
