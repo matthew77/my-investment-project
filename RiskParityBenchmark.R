@@ -66,8 +66,17 @@ load.all.prices <- function (label = 'all', root.path = DATA.ROOT) {
   ts <- NULL
   labs <- NULL
   for (i in 1:length(files)) {
-    tmp.zoo <- read.csv.zoo(files[i], format="%Y/%m/%d", tz='GMT')
-    tmp.xts <- as.xts(tmp.zoo)
+    out <- tryCatch({
+        tmp.zoo <- read.csv.zoo(files[i], format="%Y/%m/%d", tz='GMT')
+        tmp.zoo
+      },
+      error=function(cond){
+        # try another format
+        tmp.zoo <- read.csv.zoo(files[i], format="%Y-%m-%d", tz='GMT')
+        tmp.zoo
+      }
+    )
+    tmp.xts <- as.xts(out)
     if (i == 1) {
       ts <- tmp.xts
     }else {
@@ -374,7 +383,9 @@ ConvertToTargetCurrency <- function(from, to, ts, currency.pair.path = DATA.ROOT
   }
   combined.ts <- cbind(ts, currency)
   combined.ts <- na.omit(combined.ts)
-  return(combined.ts[,1]*combined.ts[,2])
+  trans.ts <- combined.ts[,1]*combined.ts[,2]
+  colnames(trans.ts) <- c('price')
+  trans.ts
 }
 
 window.by.end.date <- function(ts, end.date, time.window=BIG.ASSET.TIME.WINDOW, period='weeks') {
@@ -671,9 +682,10 @@ UpdateCovChangeDate <- function(lab, date.str){
 
 GetPreCovChangeDate <- function(lab){
   cov.date.file <- paste(OUTPUT.ROOT, 'sub_portfolio', 'cov_change.csv', sep = '/')
-  tryCatch(
+  rec <- tryCatch(
     {
       cov.date <- read.csv(cov.date.file, row.names = 1, stringsAsFactors = FALSE)
+      cov.date
     },
     error=function(cond){
       stop(cond)
@@ -683,7 +695,7 @@ GetPreCovChangeDate <- function(lab){
     }
   )
   # return a date str
-  cov.date[lab, 'date']
+  rec[lab, 'date']
 }
 
 CalcuRPAllocation <- function(lab = 'RPROOT', weight = 1, rec = NULL) {
@@ -1036,23 +1048,22 @@ ConvertTSCurrency <- function(lab, input.path,
 #convert
 input.path <- paste(DATA.ROOT, 'back', sep = '/')
 # EUStoxx50.eur
-ConvertTSCurrency('EUStoxx50.eur', input.path)
+#ConvertTSCurrency('EUStoxx50.eur', input.path)
 # EUGov0710Bond.eur
-ConvertTSCurrency('EUGov0710Bond.eur', input.path)
+#ConvertTSCurrency('EUGov0710Bond.eur', input.path)
 # AU10YGovBond.aud
-ConvertTSCurrency('AU10YGovBond.aud', input.path)
+#ConvertTSCurrency('AU10YGovBond.aud', input.path)
 # ASX200.aud
-ConvertTSCurrency('ASX200.aud', input.path)
+#ConvertTSCurrency('ASX200.aud', input.path)
 # SP500.usd
-ConvertTSCurrency('SP500.usd', input.path)
+#ConvertTSCurrency('SP500.usd', input.path)
 # US10Y.usd
-ConvertTSCurrency('US10Y.usd', input.path)
+#ConvertTSCurrency('US10Y.usd', input.path)
 # GSCI.usd
-ConvertTSCurrency('GSCI.usd', input.path)
+#ConvertTSCurrency('GSCI.usd', input.path)
 
 ############## TEST #####################
 
 ############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
 # 1. edit cfg/structure.csv file, adding/deleting the assets
 # 2. in output/sub_netvalue, delete the related ts file.
-
