@@ -1,3 +1,15 @@
 asset_name,level,desc
-SP500,3, level 3 for stock leaf
-GOLD,3, level 3 for comm leaf
+stock,2, level 2 for stock
+bond,2, level 2 for bond
+comm,2, level 2 for commodity
+stock_hs300,3, leaf
+stock_asx200tr,3, leaf
+stock_sp500tr,3, leaf
+stock_dax,3, leaf
+bond_cnbond,3, leaf
+bond_eu10ygovbond,3, leaf
+bond_au10ygovbond,3, leaf
+bond_us10y,3, leaf
+comm_goldcn,3, leaf
+comm_commcn,3, leaf
+comm_gsci,3, leaf
