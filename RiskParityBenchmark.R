@@ -458,7 +458,11 @@ load.sub.pf <- function(lab) {
   return(out)
 }
 
-InitRPPF <- function(label, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period='weeks') {
+InitRPPF <- function(label, ts, end.date, period='weeks') {
+  hist.window = SUB.ASSET.TIME.WINDOW
+  if(label == 'RPROOT') {
+    hist.window=BIG.ASSET.TIME.WINDOW
+  }
   rts <- get.pre.n.years.rt(ts, end.date, n = hist.window, period=period)
   #check the ts contains enough data.
   idx <- index(rts$rt)
@@ -466,7 +470,7 @@ InitRPPF <- function(label, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, p
   pos2 <- idx[length(idx)]
   span.weeks <- as.numeric(pos2 - pos1, units='weeks')
   if(span.weeks < MIN.WINDOW.TO.START) {
-    e <- simpleError(paste('Not enough data to start the process :::', colnames(ts), sep = ' '))
+    e <- simpleError(paste('Not enough data to start the process :::', label, sep = ' '))
     stop(e)
   }
   cov.mtx <- rts$cov
@@ -767,7 +771,7 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
       # it's the first time run for this sub portfolio, so should initialized this portfolio
-      init.pf <- InitRPPF(lab, ts, end.date, hist.window = BIG.ASSET.TIME.WINDOW, period=period)
+      init.pf <- InitRPPF(lab, ts, end.date, period=period)
       sub.pf.ts <- init.pf$ts
     } else {
       # cfg and net value already saved on disk
@@ -1031,6 +1035,10 @@ CalcuPRIndex <- function(end.date, lever=2){
 }
 
 ############## MAIN #####################
+#init run
+#2006-08-01 is the first day for our index. 
+CalcuPRIndex('2006-08-01')
+#later run
 
 ############## TOOLs #####################
 ConvertTSCurrency <- function(lab, input.path, 
@@ -1046,17 +1054,17 @@ ConvertTSCurrency <- function(lab, input.path,
 }
 
 #convert
-input.path <- paste(DATA.ROOT, 'back', sep = '/')
-# EUStoxx50.eur
-#ConvertTSCurrency('EUStoxx50.eur', input.path)
-# EUGov0710Bond.eur
-#ConvertTSCurrency('EUGov0710Bond.eur', input.path)
+#input.path <- paste(DATA.ROOT, 'back', sep = '/')
+# DAX.eur
+#ConvertTSCurrency('DAX.eur', input.path)
+# Eu10YGovBond.eur
+#ConvertTSCurrency('Eu10YGovBond.eur', input.path)
 # AU10YGovBond.aud
 #ConvertTSCurrency('AU10YGovBond.aud', input.path)
-# ASX200.aud
-#ConvertTSCurrency('ASX200.aud', input.path)
-# SP500.usd
-#ConvertTSCurrency('SP500.usd', input.path)
+# ASX200TR.aud
+#ConvertTSCurrency('ASX200TR.aud', input.path)
+# SP500TR.usd
+#ConvertTSCurrency('SP500TR.usd', input.path)
 # US10Y.usd
 #ConvertTSCurrency('US10Y.usd', input.path)
 # GSCI.usd
