@@ -593,6 +593,10 @@ CalcuRPTS <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date, in
     e <- simpleError('The end date of the history sub portfolio ts (', start.pos, ') is later than current end date (', end.date, ')')
     stop(e)
   }
+  # in this case, if rerun the same date multiple times:
+  if(start.pos == end.date.obj) {
+    return(hist.pf.ts)
+  }
   ## loop from hist.pf.ts end to end.date to construct the ts.
   one.day <- as.difftime(1, units = "days")
   start.pos <- start.pos+one.day # should start the process at least one day after the previous run.
@@ -658,6 +662,7 @@ CalcuRPTS <- function (parent.lab, current.sub.ts, hist.pf.ts, cfg, end.date, in
   }
   #combine the history ts and new ts and return. 
   total.pf.ts <- rbind(hist.pf.ts, current.pf.ts)
+  total.pf.ts
 }
 
 UpdateCovChangeDate <- function(lab, date.str){
@@ -964,7 +969,8 @@ CalcuPRIndex <- function(end.date, lever=2){
             # update volumn info
             alloc.vol.info[lab, 'volumn'] <- alloc.vol.info[lab, 'volumn'] + volumn.change
             is.rebalanced <- TRUE
-          } else if(is.ref.w.changed){
+          } 
+          if(is.ref.w.changed){
             # why need this check? because there may be the ref weight has been changed, but 
             # the current asset weight can still be in the new range. in this case, the ref
             # weight should be updated into alloc.vol.info and save onto disk
@@ -1037,8 +1043,14 @@ CalcuPRIndex <- function(end.date, lever=2){
 ############## MAIN #####################
 #init run
 #2006-08-01 is the first day for our index. 
-CalcuPRIndex('2006-08-01')
+#CalcuPRIndex('2006-08-01')
 #later run
+## 1st phase: end date = 2009-10-15
+#CalcuPRIndex('2009-10-15')
+## 2nd phase: end date = today()
+# testing for adding assets
+#CalcuPRIndex('2009-10-16')
+#CalcuPRIndex('2017-09-29')
 
 ############## TOOLs #####################
 ConvertTSCurrency <- function(lab, input.path, 
@@ -1054,13 +1066,13 @@ ConvertTSCurrency <- function(lab, input.path,
 }
 
 #convert
-#input.path <- paste(DATA.ROOT, 'back', sep = '/')
+input.path <- paste(DATA.ROOT, 'back', sep = '/')
 # DAX.eur
 #ConvertTSCurrency('DAX.eur', input.path)
-# Eu10YGovBond.eur
-#ConvertTSCurrency('Eu10YGovBond.eur', input.path)
-# AU10YGovBond.aud
-#ConvertTSCurrency('AU10YGovBond.aud', input.path)
+# EUGov0710Bond.eur
+#ConvertTSCurrency('EUGov0710Bond.eur', input.path)
+# AU0510YGovBond.aud
+#ConvertTSCurrency('AU0510YGovBond.aud', input.path)
 # ASX200TR.aud
 #ConvertTSCurrency('ASX200TR.aud', input.path)
 # SP500TR.usd
