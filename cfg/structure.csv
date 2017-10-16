@@ -7,8 +7,8 @@ stock_asx200tr,3, leaf
 stock_sp500tr,3, leaf
 stock_dax,3, leaf
 bond_cnbond,3, leaf
-bond_eu10ygovbond,3, leaf
-bond_au10ygovbond,3, leaf
+bond_eugov0710bond,3, leaf
+bond_au0510ygovbond,3, leaf
 bond_us10y,3, leaf
 comm_goldcn,3, leaf
 comm_commcn,3, leaf
