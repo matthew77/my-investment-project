@@ -111,7 +111,7 @@ get.pre.n.years.rt <- function(ts, end, n=SUB.ASSET.TIME.WINDOW, period='weeks')
   # default n=3, 3 years of data
   # period can be:"seconds", "minutes", "hours", "days", "weeks", "months", "quarters", and "years".
   # end= matrix_xts['2006-01-07/2007-01-07']
-  tmp.ts <- window.by.end.date(ts, end, time.window = n)
+  tmp.ts <- window.by.end.date(ts, end, time.window = n, period = period)
   rt <- get.normal.rt(tmp.ts)
   # get cor(), cov()
   cov <- cov(rt)
@@ -1077,10 +1077,38 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 #ConvertTSCurrency('ASX200TR.aud', input.path)
 # SP500TR.usd
 #ConvertTSCurrency('SP500TR.usd', input.path)
-# US10Y.usd
-#ConvertTSCurrency('US10Y.usd', input.path)
+# ussp0510bond.usd
+#ConvertTSCurrency('ussp0510bond.usd', input.path)
 # GSCI.usd
 #ConvertTSCurrency('GSCI.usd', input.path)
+
+RunWeeklyStats <- function(ts, end.date, is.yield = FALSE) {
+  # is.yield -- whether the input ts is yield instead of price
+  
+}
+
+GetPriceChange <- function(ts, end.date, window = 'week', is.abs.change = FALSE) {
+  # period = "ytd", "week", "month", "quarter", and "year"
+  # is.abs.change = FALSE means % change, else means absolute price change
+  end.date.obj <- as.POSIXct(end.date, tz='GMT')
+  # get current price
+  close.price <- as.numeric(ts[end.date.obj])
+  #YTD(year to date)
+  if(window == 'ytd') {
+    current.year <- format(end.date.obj, '%Y')
+    ytd <- paste(current.year, '01', '01', sep = '-')
+    ts.window <- ts[paste(ytd, end.date, sep = '/')]
+    open.price <- as.numeric(ts.window[1])
+  }else{
+    if(window == 'weeks') {
+      time.diff <- as.difftime(1, units = "weeks")
+      open.date <- end.date.obj - time.diff
+      open.price <- as.numeric(ts[open.date])
+    }
+    one.day <- as.difftime(1, units = "days")
+  }
+  
+}
 
 ############## TEST #####################
 
