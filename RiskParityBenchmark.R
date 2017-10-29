@@ -1082,32 +1082,108 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 # GSCI.usd
 #ConvertTSCurrency('GSCI.usd', input.path)
 
-RunWeeklyStats <- function(ts, end.date, is.yield = FALSE) {
-  # is.yield -- whether the input ts is yield instead of price
+RunWeeklyStats <- function(end.date) {
+  
   
 }
 
-GetPriceChange <- function(ts, end.date, window = 'week', is.abs.change = FALSE) {
+GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, root.path = DATA.ROOT) {
+  ts <- load.all.prices(label, root.path = root.path)
+  price <- as.numeric(ts[end.date])
+  ytd <- GetPriceChange(ts, end.date, period='ytd', is.abs.change=is.abs.change)
+  a.1.week.chg <- GetPriceChange(ts, end.date, is.abs.change=is.abs.change)
+  a.1.mon.chg <- GetPriceChange(ts, end.date, period='month', is.abs.change=is.abs.change)
+  a.1.qrt.chg <- GetPriceChange(ts, end.date, period='quarter', is.abs.change=is.abs.change)
+  a.1.year.chg <- GetPriceChange(ts, end.date, period='year', is.abs.change=is.abs.change)
+  info.list <- list(lab=label, price=price, ytd=ytd, "1week.chg"=a.1.week.chg, "1month.chg"=a.1.mon.chg,
+                    "1qrt.chg"=a.1.qrt.chg, "1year.chg"=a.1.year.chg)
+  ##52W
+  info.52w <- GetHighLowInfo(ts, end.date, period='week', n=52)
+  names(info.52w) <- c('52w.high', '52w.high.date','52w.low', '52w.low.date',
+                       '52w.from.high', '52w.from.low')
+  info.list <- append(info.list, info.52w)
+  #TODO: 52W BIAS / p value
+  ##3 year
+  info.3y <- GetHighLowInfo(ts, end.date, period='year', n=3)
+  names(info.3y) <- c('3y.high', '3y.high.date','3y.low', '3y.low.date',
+                       '3y.from.high', '3y.from.low')
+  info.list <- append(info.list, info.3y)
+  #TODO: 3Y BIAS / p value
+  ##3 year
+  info.5y <- GetHighLowInfo(ts, end.date, period='year', n=5)
+  names(info.5y) <- c('5y.high', '5y.high.date','5y.low', '5y.low.date',
+                      '5y.from.high', '5y.from.low')
+  info.list <- append(info.list, info.5y)
+  #TODO: 5Y BIAS / p value
+  rec <- as.data.frame(info.list)
+  rec
+}
+
+GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE){
+  # period = week, month, quarter, year
+  # median.as.mean -- choose mean or median as rolling mean to compute bias
+}
+
+GetHighLowInfo <- function(complete.ts, end.date, period = 'week', n=1) {
+  # period = week, month, quarter, year
+  open.date.obj <- GetStartDate(end.date, period = period, n=n)
+  ts.window <- complete.ts[paste(format(open.date.obj), end.date, sep = '/')]
+  tmp.ts <- ts.window[which.max(ts.window)]
+  high.price <- as.numeric(tmp.ts)
+  high.date <- index(tmp.ts)
+  tmp.ts <- ts.window[which.min(ts.window)]
+  low.price <- as.numeric(tmp.ts)
+  low.date <- index(tmp.ts)
+  price <- as.numeric(complete.ts[end.date])
+  from.high <- price/high.price - 1
+  from.low <- price/low.price - 1
+  info <- list(hprice = high.price, hdate=high.date,lprice=low.price, ldate=low.date,
+               h.chg=from.high, l.chg=from.low)
+  info
+}
+
+GetStartDate <- function (end.date, period = 'week', n=1) {
+  # period = week, month, quarter, year
+  end.date.obj <- as.POSIXct(end.date, tz='GMT')
+  pre.dates <- seq(end.date.obj, by=paste('-1', period), length.out = n+1)
+  open.date <- pre.dates[n+1]
+  open.date
+}
+
+GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = FALSE) {
   # period = "ytd", "week", "month", "quarter", and "year"
+  # n -- n * period
   # is.abs.change = FALSE means % change, else means absolute price change
   end.date.obj <- as.POSIXct(end.date, tz='GMT')
   # get current price
   close.price <- as.numeric(ts[end.date.obj])
+  price.change <- NULL
+  open.price <- NULL
   #YTD(year to date)
-  if(window == 'ytd') {
+  if(period == 'ytd') {
     current.year <- format(end.date.obj, '%Y')
     ytd <- paste(current.year, '01', '01', sep = '-')
     ts.window <- ts[paste(ytd, end.date, sep = '/')]
     open.price <- as.numeric(ts.window[1])
-  }else{
-    if(window == 'weeks') {
-      time.diff <- as.difftime(1, units = "weeks")
-      open.date <- end.date.obj - time.diff
-      open.price <- as.numeric(ts[open.date])
-    }
-    one.day <- as.difftime(1, units = "days")
+  } else if(period == 'week') {
+    time.diff <- n * as.difftime(1, units = "weeks")
+    open.date <- end.date.obj - time.diff
+    ts.window <- ts[paste(open.date, end.date, sep = '/')]
+    open.price <- as.numeric(ts.window[1])
+  } else {
+    # for senario: month, quarter, year
+    step.str <- paste('-1', period)
+    pre.dates <- seq(end.date.obj, by=step.str, length.out = n+1)
+    open.date <- pre.dates[n+1]
+    ts.window <- ts[paste(open.date, end.date, sep = '/')]
+    open.price <- as.numeric(ts.window[1])
   }
-  
+  if(is.abs.change) {
+    price.change <- close.price - open.price
+  } else {
+    price.change <- close.price/open.price - 1
+  }
+  price.change
 }
 
 ############## TEST #####################
