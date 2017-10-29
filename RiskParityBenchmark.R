@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
@@ -1083,31 +1083,74 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 #ConvertTSCurrency('GSCI.usd', input.path)
 
 RunWeeklyStats <- function(ts, end.date, is.yield = FALSE) {
-  # is.yield -- whether the input ts is yield instead of price
+  
   
 }
 
-GetPriceChange <- function(ts, end.date, window = 'week', is.abs.change = FALSE) {
+GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, root.path = DATA.ROOT) {
+  ts <- load.all.prices(label, root.path = root.path)
+  price <- as.numeric(ts[end.date])
+  ytd <- GetPriceChange(ts, end.date, period='ytd', is.abs.change=is.abs.change)
+  a.1.week.chg <- GetPriceChange(ts, end.date, is.abs.change=is.abs.change)
+  a.1.mon.chg <- GetPriceChange(ts, end.date, period='month', is.abs.change=is.abs.change)
+  a.1.qrt.chg <- GetPriceChange(ts, end.date, period='quarter', is.abs.change=is.abs.change)
+  a.1.year.chg <- GetPriceChange(ts, end.date, period='year', is.abs.change=is.abs.change)
+  ##52W
+  open.date.obj <- GetStartDate(end.date, n=52)
+  ts.window <- ts[paste(open.date.obj, end.date, sep = '/')]
+  tmp.ts <- ts.window[which.max(ts.window)]
+  a.52w.high <- as.numeric(tmp.ts)
+  a.52w.high.date <- index(a.52w.high)
+  tmp.ts <- ts.window[which.min(ts.window)]
+  a.52w.low <- as.numeric(tmp.ts)
+  a.52w.low.date <- index(a.52w.high)
+  a.52w.from.high <- price/a.52w.high - 1
+  a.52w.from.low <- price/a.52w.low - 1
+  ##
+}
+
+GetStartDate <- function (end.date, period = 'week', n=1) {
+  # period = week, month, quarter, year
+  end.date.obj <- as.POSIXct(end.date, tz='GMT')
+  pre.dates <- seq(end.date.obj, by=paste('-1', period), length.out = n+1)
+  open.date <- pre.dates[n+1]
+  open.date
+}
+
+GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = FALSE) {
   # period = "ytd", "week", "month", "quarter", and "year"
+  # n -- n * period
   # is.abs.change = FALSE means % change, else means absolute price change
   end.date.obj <- as.POSIXct(end.date, tz='GMT')
   # get current price
   close.price <- as.numeric(ts[end.date.obj])
+  price.change <- NULL
+  open.price <- NULL
   #YTD(year to date)
-  if(window == 'ytd') {
+  if(period == 'ytd') {
     current.year <- format(end.date.obj, '%Y')
     ytd <- paste(current.year, '01', '01', sep = '-')
     ts.window <- ts[paste(ytd, end.date, sep = '/')]
     open.price <- as.numeric(ts.window[1])
-  }else{
-    if(window == 'weeks') {
-      time.diff <- as.difftime(1, units = "weeks")
-      open.date <- end.date.obj - time.diff
-      open.price <- as.numeric(ts[open.date])
-    }
-    one.day <- as.difftime(1, units = "days")
+  } else if(period == 'week') {
+    time.diff <- n * as.difftime(1, units = "weeks")
+    open.date <- end.date.obj - time.diff
+    ts.window <- ts[paste(open.date, end.date, sep = '/')]
+    open.price <- as.numeric(ts.window[1])
+  } else {
+    # for senario: month, quarter, year
+    step.str <- paste('-1', period)
+    pre.dates <- seq(end.date.obj, by=step.str, length.out = n+1)
+    open.date <- pre.dates[n+1]
+    ts.window <- ts[paste(open.date, end.date, sep = '/')]
+    open.price <- as.numeric(ts.window[1])
   }
-  
+  if(is.abs.change) {
+    price.change <- close.price - open.price
+  } else {
+    price.change <- close.price/open.price - 1
+  }
+  price.change
 }
 
 ############## TEST #####################
