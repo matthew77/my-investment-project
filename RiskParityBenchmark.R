@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
@@ -1083,7 +1083,6 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 #ConvertTSCurrency('GSCI.usd', input.path)
 
 RunWeeklyStats <- function(end.date) {
-  
   
 }
 
