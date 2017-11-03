@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
@@ -1121,6 +1121,18 @@ GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, ro
 GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE){
   # period = week, month, quarter, year
   # median.as.mean -- choose mean or median as rolling mean to compute bias
+  price <- as.numeric(complete.ts[end.date])
+  ts.window <- WindowTsBy
+}
+
+WindowTsByPeriod <- function (complete.ts, end.date, period='year', n=1) {
+  # period = week, month, quarter, year
+  end.date.obj <- as.POSIXct(end.date, tz='GMT')
+  step.str <- paste('-1', period)
+  pre.dates <- seq(end.date.obj, by=step.str, length.out = n+1)
+  open.date <- pre.dates[n+1]
+  ts.window <- ts[paste(open.date, end.date, sep = '/')]
+  ts.window
 }
 
 GetHighLowInfo <- function(complete.ts, end.date, period = 'week', n=1) {
@@ -1171,10 +1183,7 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
     open.price <- as.numeric(ts.window[1])
   } else {
     # for senario: month, quarter, year
-    step.str <- paste('-1', period)
-    pre.dates <- seq(end.date.obj, by=step.str, length.out = n+1)
-    open.date <- pre.dates[n+1]
-    ts.window <- ts[paste(open.date, end.date, sep = '/')]
+    ts.window <- WindowTsByPeriod(end.date, period = period, n=n)
     open.price <- as.numeric(ts.window[1])
   }
   if(is.abs.change) {
