@@ -3,10 +3,10 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
-DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
-OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+#DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
+OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+#OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
 CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
@@ -1121,6 +1121,80 @@ GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, ro
 GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE){
   # period = week, month, quarter, year
   # median.as.mean -- choose mean or median as rolling mean to compute bias
+  price <- as.numeric(complete.ts[end.date])
+  ts.window <- WindowTsByPeriod(complete.ts, end.date, period=period, n=n)
+  bias.base <- NULL
+  if(median.as.mean) {
+    bias.base <- median(ts.window)
+  } else {
+    bias.base <- mean(ts.window)
+  }
+  bias <- log(price)-log(bias.base) #log return
+  bias
+}
+
+GetBiasSample <- function(ts, period='year', n=1, median.as.mean=TRUE, sample.history.years=-1) {
+  # ts -- should have already been windowed with end.date
+  # period = week, month, quarter, year, meaning bias based on n*period mean
+  # sample.history = the recent n years for sample history data. if sample.history=-1 
+  # means all history data will be involved
+  end.date.obj <- index(ts[nrow(ts)])
+  # sample has to contains 3 years of data
+  if(sample.history.years != -1 && sample.history.years < 3) {
+    e <- simpleError('sample.history.years has to be large than 3')
+    stop(e)
+  }
+  #get the minimum required data. At least one year(250 trading days data will be required)
+  pre.date.obj <- GetDateBySpan(end.date.obj, period=period, n=n, is.forward=FALSE)
+  earliest.date.obj <- index(ts[1])
+  sample.weeks.available <- difftime(pre.date.obj, earliest.date.obj, units = "weeks")
+  if(sample.weeks.available < 52*3) {
+    # not meeting the minimum sample data quantity
+    e <- simpleError('The amount of sample data is less than 3 years')
+    stop(e)
+  }
+  # get the start position in the ts
+  start.date.obj <- NULL
+  if(sample.history.years == -1) {
+    start.date.obj <- GetDateBySpan(earliest.date.obj, period = period, n=n)
+  } else {
+    start.date.obj <- GetDateBySpan(pre.date.obj, period='year', n=sample.history.years, is.forward=FALSE)
+  }
+  tmp.ts <- ts[paste(format(start.date.obj), '/')]
+  pos1 <- which(index(ts) == index(tmp.ts[1]))
+  pos2 <- nrow(ts)
+  bias.list <- NULL
+  for(i in pos1:pos2) {
+    tmp.date <- index(ts[i])
+    bias <- GetBias(ts, tmp.date, period=period, n=n, median.as.mean=median.as.mean)
+    bias.list <- append(bias.list, bias)
+  }
+  bias.list
+}
+
+GetDateBySpan <- function(ref.date, period='year', n=1, is.forward=TRUE) {
+  # period = week, month, quarter, year
+  date.obj <- as.POSIXct(ref.date, tz='GMT')
+  step.str <- NULL
+  if(is.forward) {
+    step.str <- period
+  } else {
+    step.str <- paste('-1', period)  
+  }
+  pre.dates <- seq(date.obj, by=step.str, length.out = n+1)
+  open.date.obj <- pre.dates[n+1]
+  open.date.obj
+}
+
+GetBiasPValue <- function(bias, complete.ts) {
+  #
+}
+
+WindowTsByPeriod <- function (complete.ts, end.date, period='year', n=1) {
+  # period = week, month, quarter, year
+  open.date <- GetDateBySpan(end.date, period='year', n=n, is.forward=FALSE)
+  ts.window <- complete.ts[paste(open.date, end.date, sep = '/')]
+  ts.window
 }
 
 GetHighLowInfo <- function(complete.ts, end.date, period = 'week', n=1) {
@@ -1171,10 +1245,7 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
     open.price <- as.numeric(ts.window[1])
   } else {
     # for senario: month, quarter, year
-    step.str <- paste('-1', period)
-    pre.dates <- seq(end.date.obj, by=step.str, length.out = n+1)
-    open.date <- pre.dates[n+1]
-    ts.window <- ts[paste(open.date, end.date, sep = '/')]
+    ts.window <- WindowTsByPeriod(end.date, period = period, n=n)
     open.price <- as.numeric(ts.window[1])
   }
   if(is.abs.change) {
