@@ -1118,7 +1118,7 @@ GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, ro
   rec
 }
 
-GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE){
+GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE, log.rt=TRUE){
   # period = week, month, quarter, year
   # median.as.mean -- choose mean or median as rolling mean to compute bias
   price <- as.numeric(complete.ts[end.date])
@@ -1129,7 +1129,11 @@ GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TR
   } else {
     bias.base <- mean(ts.window)
   }
-  bias <- log(price)-log(bias.base) #log return
+  if(log.rt){
+    bias <- log(price)-log(bias.base) #log return
+  } else {
+    bias <- price/bias.base
+  }
   bias
 }
 
