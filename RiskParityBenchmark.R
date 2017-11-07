@@ -1097,25 +1097,53 @@ GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, ro
   info.list <- list(lab=label, price=price, ytd=ytd, "1week.chg"=a.1.week.chg, "1month.chg"=a.1.mon.chg,
                     "1qrt.chg"=a.1.qrt.chg, "1year.chg"=a.1.year.chg)
   ##52W
-  info.52w <- GetHighLowInfo(ts, end.date, period='week', n=52)
+  info.52w <- GetHighLowInfoRpt(ts, end.date, period='week', n=52)
   names(info.52w) <- c('52w.high', '52w.high.date','52w.low', '52w.low.date',
                        '52w.from.high', '52w.from.low')
   info.list <- append(info.list, info.52w)
-  #TODO: 52W BIAS / p value
+  #52W BIAS / p value
+  #TODO: for interest rate, log return should be applied, because interest can only have min 
+  # equal to 0 or slightly negtive
+  bias.52w <- GetBiasInfoRpt(ts, end.date, is.abs.change=is.abs.change,
+                             period='year', n=1, median.as.mean=TRUE, log.rt=TRUE, sample.history.years=-1)
+  
   ##3 year
-  info.3y <- GetHighLowInfo(ts, end.date, period='year', n=3)
+  info.3y <- GetHighLowInfoRpt(ts, end.date, period='year', n=3)
   names(info.3y) <- c('3y.high', '3y.high.date','3y.low', '3y.low.date',
                        '3y.from.high', '3y.from.low')
   info.list <- append(info.list, info.3y)
   #TODO: 3Y BIAS / p value
   ##3 year
-  info.5y <- GetHighLowInfo(ts, end.date, period='year', n=5)
+  info.5y <- GetHighLowInfoRpt(ts, end.date, period='year', n=5)
   names(info.5y) <- c('5y.high', '5y.high.date','5y.low', '5y.low.date',
                       '5y.from.high', '5y.from.low')
   info.list <- append(info.list, info.5y)
   #TODO: 5Y BIAS / p value
   rec <- as.data.frame(info.list)
   rec
+}
+
+GetBiasInfoRpt <- function(complete.ts, end.date, is.abs.change=FALSE, period='year',
+                            n=1, median.as.mean=TRUE, log.rt=TRUE, sample.history.years=-1) {
+  bias <- NA
+  sample <- NULL
+  if(is.abs.change) {
+    bias <- as.numeric(complete.ts[end.date])
+    sample <- coredata(complete.ts[paste('/', end.date, sep = '')])
+    if(log.rt) {
+      bias <- log(bias)
+      sample <- log(sample)
+    }
+  } else {
+    bias <- GetBias(complete.ts, end.date, period=period, n=n, 
+                  median.as.mean=median.as.mean, log.rt=log.rt)
+    sample <- GetBiasSample(complete.ts[paste('/', end.date, sep = '')], period=period, n=n, median.as.mean= median.as.mean,
+                          sample.history.years=sample.history.years, log.rt=log.rt)
+  }
+  cdf.fuc <- ecdf(sample)
+  p.value <- cdf.fuc(bias)
+  bias.info <- list(bias=bias, p.value=p.value)
+  bias.info
 }
 
 GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE, log.rt=TRUE){
@@ -1132,12 +1160,13 @@ GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TR
   if(log.rt){
     bias <- log(price)-log(bias.base) #log return
   } else {
-    bias <- price/bias.base
+    bias <- price/bias.base - 1
   }
   bias
 }
 
-GetBiasSample <- function(ts, period='year', n=1, median.as.mean=TRUE, sample.history.years=-1) {
+GetBiasSample <- function(ts, period='year', n=1, median.as.mean=TRUE, 
+                          sample.history.years=-1, log.rt=TRUE) {
   # ts -- should have already been windowed with end.date
   # period = week, month, quarter, year, meaning bias based on n*period mean
   # sample.history = the recent n years for sample history data. if sample.history=-1 
@@ -1170,7 +1199,7 @@ GetBiasSample <- function(ts, period='year', n=1, median.as.mean=TRUE, sample.hi
   bias.list <- NULL
   for(i in pos1:pos2) {
     tmp.date <- index(ts[i])
-    bias <- GetBias(ts, tmp.date, period=period, n=n, median.as.mean=median.as.mean)
+    bias <- GetBias(ts, tmp.date, period=period, n=n, median.as.mean=median.as.mean, log.rt=log.rt)
     bias.list <- append(bias.list, bias)
   }
   bias.list
@@ -1190,10 +1219,6 @@ GetDateBySpan <- function(ref.date, period='year', n=1, is.forward=TRUE) {
   open.date.obj
 }
 
-GetBiasPValue <- function(bias, complete.ts) {
-  #
-}
-
 WindowTsByPeriod <- function (complete.ts, end.date, period='year', n=1) {
   # period = week, month, quarter, year
   open.date <- GetDateBySpan(end.date, period='year', n=n, is.forward=FALSE)
@@ -1201,7 +1226,7 @@ WindowTsByPeriod <- function (complete.ts, end.date, period='year', n=1) {
   ts.window
 }
 
-GetHighLowInfo <- function(complete.ts, end.date, period = 'week', n=1) {
+GetHighLowInfoRpt <- function(complete.ts, end.date, period = 'week', n=1) {
   # period = week, month, quarter, year
   open.date.obj <- GetStartDate(end.date, period = period, n=n)
   ts.window <- complete.ts[paste(format(open.date.obj), end.date, sep = '/')]
