@@ -1086,7 +1086,8 @@ RunWeeklyStats <- function(end.date) {
   
 }
 
-GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, root.path = DATA.ROOT) {
+GetAssetPriceChangeStats <- function (label, end.date, median.as.mean=TRUE, log.rt = TRUE,
+                                      is.abs.change = FALSE, root.path = DATA.ROOT) {
   ts <- load.all.prices(label, root.path = root.path)
   price <- as.numeric(ts[end.date])
   ytd <- GetPriceChange(ts, end.date, period='ytd', is.abs.change=is.abs.change)
@@ -1101,24 +1102,36 @@ GetAssetPriceChangeStats <- function (label, end.date, is.abs.change = FALSE, ro
   names(info.52w) <- c('52w.high', '52w.high.date','52w.low', '52w.low.date',
                        '52w.from.high', '52w.from.low')
   info.list <- append(info.list, info.52w)
-  #52W BIAS / p value
-  #TODO: for interest rate, log return should be applied, because interest can only have min 
+  # 52W BIAS / p value
+  # for interest rate, log return should be applied, because interest can only have min 
   # equal to 0 or slightly negtive
   bias.52w <- GetBiasInfoRpt(ts, end.date, is.abs.change=is.abs.change,
-                             period='year', n=1, median.as.mean=TRUE, log.rt=TRUE, sample.history.years=-1)
-  
+                             period='year', n=1, median.as.mean=median.as.mean, 
+                             log.rt=log.rt, sample.history.years=-1)
+  names(bias.52w) <- c('52w.bias', '52w.bias.p.value') 
+  info.list <- append(info.list, info.52w)
   ##3 year
   info.3y <- GetHighLowInfoRpt(ts, end.date, period='year', n=3)
   names(info.3y) <- c('3y.high', '3y.high.date','3y.low', '3y.low.date',
                        '3y.from.high', '3y.from.low')
   info.list <- append(info.list, info.3y)
-  #TODO: 3Y BIAS / p value
+  # 3Y BIAS / p value
+  bias.3y <- GetBiasInfoRpt(ts, end.date, is.abs.change=is.abs.change,
+                             period='year', n=3, median.as.mean=median.as.mean, 
+                            log.rt=log.rt, sample.history.years=-1)
+  names(bias.3y) <- c('3y.bias', '3y.bias.p.value') 
+  info.list <- append(info.list, bias.3y)
   ##3 year
   info.5y <- GetHighLowInfoRpt(ts, end.date, period='year', n=5)
   names(info.5y) <- c('5y.high', '5y.high.date','5y.low', '5y.low.date',
                       '5y.from.high', '5y.from.low')
   info.list <- append(info.list, info.5y)
-  #TODO: 5Y BIAS / p value
+  # 5Y BIAS / p value
+  bias.3y <- GetBiasInfoRpt(ts, end.date, is.abs.change=is.abs.change,
+                            period='year', n=5, median.as.mean=median.as.mean, 
+                            log.rt=log.rt, sample.history.years=-1)
+  names(bias.3y) <- c('5y.bias', '5y.bias.p.value') 
+  info.list <- append(info.list, bias.5y)
   rec <- as.data.frame(info.list)
   rec
 }
@@ -1285,7 +1298,7 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
   price.change
 }
 
-############## TEST #####################
+############## TEST ####################
 
 ############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
 # 1. edit cfg/structure.csv file, adding/deleting the assets
