@@ -1285,7 +1285,7 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
   price.change
 }
 
-############## TEST #####################
+############## TEST ####################
 
 ############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
 # 1. edit cfg/structure.csv file, adding/deleting the assets
