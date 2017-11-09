@@ -1083,7 +1083,16 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 #ConvertTSCurrency('GSCI.usd', input.path)
 
 RunWeeklyStats <- function(end.date) {
+  print('processing us10...')
+  rpt <- GetAssetPriceChangeStats('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  print('processing hs300...')
+  tmp.rpt <- GetAssetPriceChangeStats('hs300', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
   
+  #
+  rpt.name <- paste('weekly',end.date, '.csv', sep = '')
+  out.file <- paste(OUTPUT.ROOT, 'status_report', rpt.name, sep = '/')
+  write.csv(rpt, out.file)
 }
 
 GetAssetPriceChangeStats <- function (label, end.date, median.as.mean=TRUE, log.rt = TRUE,
@@ -1121,16 +1130,16 @@ GetAssetPriceChangeStats <- function (label, end.date, median.as.mean=TRUE, log.
                             log.rt=log.rt, sample.history.years=-1)
   names(bias.3y) <- c('3y.bias', '3y.bias.p.value') 
   info.list <- append(info.list, bias.3y)
-  ##3 year
+  ##5 year
   info.5y <- GetHighLowInfoRpt(ts, end.date, period='year', n=5)
   names(info.5y) <- c('5y.high', '5y.high.date','5y.low', '5y.low.date',
                       '5y.from.high', '5y.from.low')
   info.list <- append(info.list, info.5y)
   # 5Y BIAS / p value
-  bias.3y <- GetBiasInfoRpt(ts, end.date, is.abs.change=is.abs.change,
+  bias.5y <- GetBiasInfoRpt(ts, end.date, is.abs.change=is.abs.change,
                             period='year', n=5, median.as.mean=median.as.mean, 
                             log.rt=log.rt, sample.history.years=-1)
-  names(bias.3y) <- c('5y.bias', '5y.bias.p.value') 
+  names(bias.5y) <- c('5y.bias', '5y.bias.p.value') 
   info.list <- append(info.list, bias.5y)
   rec <- as.data.frame(info.list)
   rec
@@ -1287,7 +1296,7 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
     open.price <- as.numeric(ts.window[1])
   } else {
     # for senario: month, quarter, year
-    ts.window <- WindowTsByPeriod(end.date, period = period, n=n)
+    ts.window <- WindowTsByPeriod(ts, end.date, period = period, n=n)
     open.price <- as.numeric(ts.window[1])
   }
   if(is.abs.change) {
