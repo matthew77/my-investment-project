@@ -1083,21 +1083,65 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 #ConvertTSCurrency('GSCI.usd', input.path)
 
 RunWeeklyStats <- function(end.date) {
+  #bond
   print('processing us10...')
-  rpt <- GetAssetPriceChangeStats('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
-  print('processing hs300...')
-  tmp.rpt <- GetAssetPriceChangeStats('hs300', end.date)
+  rpt <- GetAssetPriceChangeStatsWithLab('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  print('processing cn10...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('cn10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
   rpt <- rbind(rpt, tmp.rpt)
-  
+  print('processing de10...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('de10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  rpt <- rbind(rpt, tmp.rpt)
+  print('processing us10...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  rpt <- rbind(rpt, tmp.rpt)
+  #stock
+  print('processing hs300...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('hs300', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  print('processing asx200tr...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('asx200tr', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  print('processing dax...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('dax', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  print('processing sp500tr...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('sp500tr', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  #vix
+  #print('processing vix...')
+  #tmp.rpt <- GetAssetPriceChangeStatsWithLab('vix', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  #rpt <- rbind(rpt, tmp.rpt)
+  #comm
+  print('processing gsci...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('gsci', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  print('processing gold...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('goldcn', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  print('processing comm china...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('commcn', end.date)
+  rpt <- rbind(rpt, tmp.rpt)
+  #Risk Parity
+  #print('processing risk parity...')
+  #ts <- read.csv.zoo(paste(OUTPUT.ROOT, 'rp_index', '2X.csv', sep = '/'), format="%Y-%m-%d", tz='GMT')
+  #tmp.rpt <- GetAssetPriceChangeStats(label = NULL, end.date, ts=ts)
+  #rpt <- rbind(rpt, tmp.rpt)
   #
   rpt.name <- paste('weekly',end.date, '.csv', sep = '')
   out.file <- paste(OUTPUT.ROOT, 'status_report', rpt.name, sep = '/')
   write.csv(rpt, out.file)
 }
 
-GetAssetPriceChangeStats <- function (label, end.date, median.as.mean=TRUE, log.rt = TRUE,
-                                      is.abs.change = FALSE, root.path = DATA.ROOT) {
+GetAssetPriceChangeStatsWithLab <- function(label, end.date, median.as.mean=TRUE, log.rt = TRUE,
+                                            is.abs.change = FALSE, root.path = DATA.ROOT) {
   ts <- load.all.prices(label, root.path = root.path)
+  rec <- GetAssetPriceChangeStats(label, ts, end.date, median.as.mean, log.rt, is.abs.change)
+  rec
+}
+
+GetAssetPriceChangeStats <- function (label, ts, end.date, median.as.mean=TRUE, log.rt = TRUE,
+                                      is.abs.change = FALSE) {
   price <- as.numeric(ts[end.date])
   ytd <- GetPriceChange(ts, end.date, period='ytd', is.abs.change=is.abs.change)
   a.1.week.chg <- GetPriceChange(ts, end.date, is.abs.change=is.abs.change)
