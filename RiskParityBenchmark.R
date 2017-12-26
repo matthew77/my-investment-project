@@ -3,10 +3,12 @@ library(biotools)
 library(xts)
 library(stringr)
 #library(futile.logger) #all print() should be replaced with logging.
-DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
+#DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
 #DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
-OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+DATA.ROOT <- 'D:/Nutstore/my/history data'
+#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
 #OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
+OUTPUT.ROOT <- 'D:/Nutstore/my/output'
 CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
@@ -1162,7 +1164,7 @@ GetAssetPriceChangeStats <- function (label, ts, end.date, median.as.mean=TRUE, 
                              period='year', n=1, median.as.mean=median.as.mean, 
                              log.rt=log.rt, sample.history.years=-1)
   names(bias.52w) <- c('52w.bias', '52w.bias.p.value') 
-  info.list <- append(info.list, info.52w)
+  info.list <- append(info.list, bias.52w)
   ##3 year
   info.3y <- GetHighLowInfoRpt(ts, end.date, period='year', n=3)
   names(info.3y) <- c('3y.high', '3y.high.date','3y.low', '3y.low.date',
