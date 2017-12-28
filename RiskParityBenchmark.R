@@ -1086,29 +1086,29 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 
 RunWeeklyStats <- function(end.date) {
   #bond
-  print('processing us10...')
-  rpt <- GetAssetPriceChangeStatsWithLab('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
   print('processing cn10...')
-  tmp.rpt <- GetAssetPriceChangeStatsWithLab('cn10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  rpt <- GetAssetPriceChangeStatsWithLab('cn10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  print('processing us10...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
   rpt <- rbind(rpt, tmp.rpt)
   print('processing de10...')
   tmp.rpt <- GetAssetPriceChangeStatsWithLab('de10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
   rpt <- rbind(rpt, tmp.rpt)
-  print('processing us10...')
-  tmp.rpt <- GetAssetPriceChangeStatsWithLab('us10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
+  print('processing au10...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('au10', end.date, is.abs.change = TRUE, root.path=paste(DATA.ROOT, 'bond_yield', sep = '/'))
   rpt <- rbind(rpt, tmp.rpt)
   #stock
   print('processing hs300...')
   tmp.rpt <- GetAssetPriceChangeStatsWithLab('hs300', end.date)
   rpt <- rbind(rpt, tmp.rpt)
-  print('processing asx200tr...')
-  tmp.rpt <- GetAssetPriceChangeStatsWithLab('asx200tr', end.date)
+  print('processing sp500tr...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('sp500tr', end.date)
   rpt <- rbind(rpt, tmp.rpt)
   print('processing dax...')
   tmp.rpt <- GetAssetPriceChangeStatsWithLab('dax', end.date)
   rpt <- rbind(rpt, tmp.rpt)
-  print('processing sp500tr...')
-  tmp.rpt <- GetAssetPriceChangeStatsWithLab('sp500tr', end.date)
+  print('processing asx200tr...')
+  tmp.rpt <- GetAssetPriceChangeStatsWithLab('asx200tr', end.date)
   rpt <- rbind(rpt, tmp.rpt)
   #vix
   #print('processing vix...')
@@ -1193,48 +1193,64 @@ GetAssetPriceChangeStats <- function (label, ts, end.date, median.as.mean=TRUE, 
 
 GetBiasInfoRpt <- function(complete.ts, end.date, is.abs.change=FALSE, period='year',
                             n=1, median.as.mean=TRUE, log.rt=TRUE, sample.history.years=-1) {
-  bias <- NA
+  bias <- GetBias(complete.ts, end.date, period=period, n=n, 
+                   median.as.mean=median.as.mean, log.rt=log.rt, is.abs.change = is.abs.change)
   sample <- NULL
   if(is.abs.change) {
-    bias <- as.numeric(complete.ts[end.date])
+    #bias <- as.numeric(complete.ts[end.date])
     sample <- coredata(complete.ts[paste('/', end.date, sep = '')])
     if(log.rt) {
-      bias <- log(bias)
-      sample <- log(sample)
+      #bias <- log(bias)
+      sample <- log(1 + sample)
     }
   } else {
-    bias <- GetBias(complete.ts, end.date, period=period, n=n, 
-                  median.as.mean=median.as.mean, log.rt=log.rt)
+    #bias <- GetBias(complete.ts, end.date, period=period, n=n, 
+    #              median.as.mean=median.as.mean, log.rt=log.rt)
     sample <- GetBiasSample(complete.ts[paste('/', end.date, sep = '')], period=period, n=n, median.as.mean= median.as.mean,
                           sample.history.years=sample.history.years, log.rt=log.rt)
   }
+#  bias <- GetBias(complete.ts, end.date, period=period, n=n, 
+#                  median.as.mean=median.as.mean, log.rt=log.rt, is.abs.change = is.abs.change)
+#  sample <- GetBiasSample(complete.ts[paste('/', end.date, sep = '')], period=period, n=n, median.as.mean= median.as.mean,
+#                          sample.history.years=sample.history.years, log.rt=log.rt, is.abs.change = is.abs.change)
   cdf.fuc <- ecdf(sample)
   p.value <- cdf.fuc(bias)
   bias.info <- list(bias=bias, p.value=p.value)
   bias.info
 }
 
-GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE, log.rt=TRUE){
+GetBias <- function(complete.ts, end.date, period='year', n=1, median.as.mean=TRUE, 
+                    log.rt=TRUE, is.abs.change = FALSE){
   # period = week, month, quarter, year
   # median.as.mean -- choose mean or median as rolling mean to compute bias
   price <- as.numeric(complete.ts[end.date])
-  ts.window <- WindowTsByPeriod(complete.ts, end.date, period=period, n=n)
-  bias.base <- NULL
-  if(median.as.mean) {
-    bias.base <- median(ts.window)
+  if(is.abs.change) {
+    # if the ts is interest rate, then just the bias value is the interest rate itself.
+    # this is because interest rate itself is mean-reversion, so it can be used directly 
+    # by calculating the p value. 
+    bias <- price
+    if(log.rt) {
+      bias <- log(1 + bias)
+    }
   } else {
-    bias.base <- mean(ts.window)
-  }
-  if(log.rt){
-    bias <- log(price)-log(bias.base) #log return
-  } else {
-    bias <- price/bias.base - 1
+    ts.window <- WindowTsByPeriod(complete.ts, end.date, period=period, n=n)
+    bias.base <- NULL
+    if(median.as.mean) {
+      bias.base <- median(ts.window)
+    } else {
+      bias.base <- mean(ts.window)
+    }
+    if(log.rt){
+      bias <- log(price)-log(bias.base) #log return
+    } else {
+      bias <- price/bias.base - 1
+    }
   }
   bias
 }
 
 GetBiasSample <- function(ts, period='year', n=1, median.as.mean=TRUE, 
-                          sample.history.years=-1, log.rt=TRUE) {
+                          sample.history.years=-1, log.rt=TRUE, is.abs.change = FALSE) {
   # ts -- should have already been windowed with end.date
   # period = week, month, quarter, year, meaning bias based on n*period mean
   # sample.history = the recent n years for sample history data. if sample.history=-1 
@@ -1267,7 +1283,8 @@ GetBiasSample <- function(ts, period='year', n=1, median.as.mean=TRUE,
   bias.list <- NULL
   for(i in pos1:pos2) {
     tmp.date <- index(ts[i])
-    bias <- GetBias(ts, tmp.date, period=period, n=n, median.as.mean=median.as.mean, log.rt=log.rt)
+    bias <- GetBias(ts, tmp.date, period=period, n=n, median.as.mean=median.as.mean, 
+                    log.rt=log.rt, is.abs.change = is.abs.change)
     bias.list <- append(bias.list, bias)
   }
   bias.list
