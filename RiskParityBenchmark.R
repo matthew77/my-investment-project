@@ -178,8 +178,11 @@ exe.optim <- function (cov.mtx) {
   Amat <- matrix(Amat.seq, nrow = (num.asset + 1), ncol = num.asset, byrow = TRUE)
   meq <- 1 # the first line is equal condition: w1+w2+w3 = 1
   p0 <-  rep(1/num.asset, num.asset)# the init value for w1,w2,w3...
+  control <- list(M=10, maxit=50000, ftol= 1.e-10, gtol= 1.e-05, maxfeval = 10000,
+                  maximize = FALSE, trace = TRUE, triter=10, eps=1.e-07, checkGrad=NULL,
+                  checkGrad.tol= 1.e-06)
   optim.rs <- spg(par=p0, fn=optim.target, cov.mtx= cov.mtx, project="projectLinear", 
-                projectArgs=list(A=Amat, b=b, meq=meq))
+                projectArgs=list(A=Amat, b=b, meq=meq), control=control)
   print(optim.rs)
   weights <- optim.rs$par
   names(weights) <- labs
@@ -1306,7 +1309,7 @@ GetDateBySpan <- function(ref.date, period='year', n=1, is.forward=TRUE) {
 
 WindowTsByPeriod <- function (complete.ts, end.date, period='year', n=1) {
   # period = week, month, quarter, year
-  open.date <- GetDateBySpan(end.date, period='year', n=n, is.forward=FALSE)
+  open.date <- GetDateBySpan(end.date, period=period, n=n, is.forward=FALSE)
   ts.window <- complete.ts[paste(open.date, end.date, sep = '/')]
   ts.window
 }
