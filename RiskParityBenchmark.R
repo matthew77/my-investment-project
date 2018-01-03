@@ -83,6 +83,7 @@ load.all.prices <- function (label = 'all', root.path = DATA.ROOT) {
       ts <- tmp.xts
     }else {
       ts <- cbind(ts, tmp.xts)
+      #ts <- na.trim(ts)
     }
     #remove the surfix -- '*.csv'
     labs <- append(labs, substr(names[i], 1, (nchar(names[i])-4)))
@@ -90,8 +91,8 @@ load.all.prices <- function (label = 'all', root.path = DATA.ROOT) {
   colnames(ts) <- labs
   #trim and interpolation NA data
   ts <- na.trim(ts)
-  #ts <- na.approx(ts)
-  ts <- na.omit(ts)
+  ts <- na.approx(ts)
+  #ts <- na.omit(ts)
   ts
 }
 
@@ -197,9 +198,11 @@ optim.target <- function (w, cov.mtx) {
     for (j in 1:num.asset) {
       tmpsum <- tmpsum + w[i]*w[j]*cov.mtx[i,j]
     }
-    risk.contrib[i] <- tmpsum*10000
+    #risk.contrib[i] <- tmpsum*10000
+    risk.contrib[i] <- tmpsum
   }
-  var(risk.contrib)
+  risk.var <- var(risk.contrib/sum(risk.contrib))
+  risk.var
 }
 
 LoadSubPortfolioCfg <- function(label) {
