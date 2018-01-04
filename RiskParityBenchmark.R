@@ -83,15 +83,16 @@ load.all.prices <- function (label = 'all', root.path = DATA.ROOT) {
       ts <- tmp.xts
     }else {
       ts <- cbind(ts, tmp.xts)
-      #ts <- na.trim(ts)
+      ts <- na.trim(ts)
+      ts <- na.approx(ts)
     }
     #remove the surfix -- '*.csv'
     labs <- append(labs, substr(names[i], 1, (nchar(names[i])-4)))
   }
   colnames(ts) <- labs
   #trim and interpolation NA data
-  ts <- na.trim(ts)
-  ts <- na.approx(ts)
+  #ts <- na.trim(ts)
+  #ts <- na.approx(ts)
   #ts <- na.omit(ts)
   ts
 }
@@ -110,11 +111,11 @@ remove.label.level <- function(leveled.label) {
 }
 
 ###
-get.pre.n.years.rt <- function(ts, end, n=SUB.ASSET.TIME.WINDOW, period='weeks') {
+get.pre.n.years.rt <- function(ts, end, n=SUB.ASSET.TIME.WINDOW, return.period='weeks') {
   # default n=3, 3 years of data
   # period can be:"seconds", "minutes", "hours", "days", "weeks", "months", "quarters", and "years".
   # end= matrix_xts['2006-01-07/2007-01-07']
-  tmp.ts <- window.by.end.date(ts, end, time.window = n, period = period)
+  tmp.ts <- n.year.window.by.end.date(ts, end, n.years = n, to.period = return.period)
   rt <- get.normal.rt(tmp.ts)
   # get cor(), cov()
   cov <- cov(rt)
@@ -179,15 +180,35 @@ exe.optim <- function (cov.mtx) {
   Amat <- matrix(Amat.seq, nrow = (num.asset + 1), ncol = num.asset, byrow = TRUE)
   meq <- 1 # the first line is equal condition: w1+w2+w3 = 1
   p0 <-  rep(1/num.asset, num.asset)# the init value for w1,w2,w3...
-  control <- list(M=10, maxit=50000, ftol= 1.e-10, gtol= 1.e-05, maxfeval = 10000,
-                  maximize = FALSE, trace = TRUE, triter=10, eps=1.e-07, checkGrad=NULL,
-                  checkGrad.tol= 1.e-06)
-  optim.rs <- spg(par=p0, fn=optim.target, cov.mtx= cov.mtx, project="projectLinear", 
-                projectArgs=list(A=Amat, b=b, meq=meq), control=control)
+  #control <- list(M=10, maxit=50000, ftol= 1.e-10, gtol= 1.e-05, maxfeval = 10000,
+  #                maximize = FALSE, trace = TRUE, triter=10, eps=1.e-07, checkGrad=NULL,
+  #                checkGrad.tol= 1.e-06)
+  #target <- rep(1/nrow(cov.mtx), nrow(cov.mtx))
+  optim.rs <- BBoptim(par=p0, fn=optim.target, cov.mtx= cov.mtx, project="projectLinear", 
+                projectArgs=list(A=Amat, b=b, meq=meq))#, control=control
   print(optim.rs)
   weights <- optim.rs$par
   names(weights) <- labs
   return(weights)
+}
+
+# this is for unequal risk parity. e.g. stock contribution != Bond contribution
+optim.target1 <- function (w, cov.mtx, optim.target.values) {
+  num.asset <- nrow(cov.mtx)
+  risk.contrib <- rep(NA, num.asset)
+  if (missing(optim.target.values)) {
+    optim.target.values <- rep(1/num.asset, num.asset)
+  }
+  for(i in 1:num.asset) {
+    tmpsum <- 0
+    for (j in 1:num.asset) {
+      tmpsum <- tmpsum + w[i]*w[j]*cov.mtx[i,j]
+    }
+    risk.contrib[i] <- tmpsum
+  }
+  risk.contrib <- risk.contrib/sum(risk.contrib)
+  gap <- risk.contrib - optim.target.values
+  gap
 }
 
 optim.target <- function (w, cov.mtx) {
@@ -201,7 +222,7 @@ optim.target <- function (w, cov.mtx) {
     #risk.contrib[i] <- tmpsum*10000
     risk.contrib[i] <- tmpsum
   }
-  risk.var <- var(risk.contrib/sum(risk.contrib))
+  risk.var <- sd(risk.contrib/sum(risk.contrib))*num.asset*10
   risk.var
 }
 
@@ -396,8 +417,8 @@ ConvertToTargetCurrency <- function(from, to, ts, currency.pair.path = DATA.ROOT
   trans.ts
 }
 
-window.by.end.date <- function(ts, end.date, time.window=BIG.ASSET.TIME.WINDOW, period='weeks') {
-  time.window.day <- TRADING.DAYS*time.window
+n.year.window.by.end.date <- function(ts, end.date, n.years=BIG.ASSET.TIME.WINDOW, to.period='weeks') {
+  time.window.day <- TRADING.DAYS*n.years
   window.ts <- ts
   if(!missing(end.date)){
     window.ts <- ts[paste('/', end.date, sep = '')]
@@ -407,7 +428,7 @@ window.by.end.date <- function(ts, end.date, time.window=BIG.ASSET.TIME.WINDOW, 
     # subset to n years of window 
     window.ts <- window.ts[(total-time.window.day + 1):total]
   }
-  window.ts <- to.period(window.ts, period, OHLC=FALSE)
+  window.ts <- to.period(window.ts, to.period, OHLC=FALSE)
 }
 
 cov.changed <- function(ts, end.date.pre, end.date.current, time.window=BIG.ASSET.TIME.WINDOW) {
@@ -415,11 +436,11 @@ cov.changed <- function(ts, end.date.pre, end.date.current, time.window=BIG.ASSE
   if(end.date.pre == end.date.current) {
     return(FALSE)
   }
-  window.new <- window.by.end.date(ts, end.date.current, time.window = time.window)
+  window.new <- n.year.window.by.end.date(ts, end.date.current, n.years = time.window)
   rt.new <- get.normal.rt(window.new)
   rt.new <- as.matrix(rt.new) # boxM does not support xts
   flag.new <- rep(1, nrow(rt.new))
-  window.pre <- window.by.end.date(ts, end.date.pre, time.window = time.window)
+  window.pre <- n.year.window.by.end.date(ts, end.date.pre, n.years = time.window)
   rt.pre <- get.normal.rt(window.pre)
   rt.pre <- as.matrix(rt.pre)
   flag.pre <- rep(2, nrow(rt.pre))
@@ -471,7 +492,7 @@ InitRPPF <- function(label, ts, end.date, period='weeks') {
   if(label == 'RPROOT') {
     hist.window=BIG.ASSET.TIME.WINDOW
   }
-  rts <- get.pre.n.years.rt(ts, end.date, n = hist.window, period=period)
+  rts <- get.pre.n.years.rt(ts, end.date, n = hist.window, return.period=period)
   #check the ts contains enough data.
   idx <- index(rts$rt)
   pos1 <- idx[1]
@@ -1378,6 +1399,14 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
 
 ############## TEST ####################
 
+############## The Magic Formula ####################
+#path <- 'E:\\nutstore\\my\\history data\\magicformula'
+#ts <- load.all.prices(root.path = path)
+# get the latest N years of data
+#rts <- get.pre.n.years.rt(ts, '2017-12-19', n = 3)
+#output <- exe.optim(rts$cov)
+#output.mtx <- as.matrix(output)
+#write.csv(output.mtx, 'E:\\nutstore\\my\\output\\magic_formula_weights\\w.csv')
 ############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
 # 1. edit cfg/structure.csv file, adding/deleting the assets
 # 2. in output/sub_netvalue, delete the related ts file.
