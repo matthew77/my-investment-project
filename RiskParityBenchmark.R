@@ -1165,6 +1165,9 @@ RunWeeklyStats <- function(end.date) {
 GetAssetPriceChangeStatsWithLab <- function(label, end.date, median.as.mean=TRUE, log.rt = TRUE,
                                             is.abs.change = FALSE, root.path = DATA.ROOT) {
   ts <- load.all.prices(label, root.path = root.path)
+  if(is.abs.change) {
+    ts <- ts/100
+  }
   rec <- GetAssetPriceChangeStats(label, ts, end.date, median.as.mean, log.rt, is.abs.change)
   rec
 }
