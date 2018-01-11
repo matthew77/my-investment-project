@@ -6,9 +6,9 @@ library(stringr)
 #DATA.ROOT <- 'D:/MyProject/R/my-investment-project/history data'
 #DATA.ROOT <- 'E:/projects/rp/R/my-investment-project/history data'
 DATA.ROOT <- 'D:/Nutstore/my/history data'
-#OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
+OUTPUT.ROOT <- 'D:/MyProject/R/my-investment-project/output'
 #OUTPUT.ROOT <- 'E:/projects/rp/R/my-investment-project/output'
-OUTPUT.ROOT <- 'D:/Nutstore/my/output'
+#OUTPUT.ROOT <- 'D:/Nutstore/my/output'
 CONFIG.ROOT <- 'D:/MyProject/R/my-investment-project/cfg'
 BIG.ASSET.TIME.WINDOW=5 #year
 SUB.ASSET.TIME.WINDOW=3 #year
@@ -19,10 +19,7 @@ INIT.INDEX=10000
 MIN.WINDOW.TO.START=100 #weeks. if the ts data is less than this threashold, then the data should not be included.
 TRANSACTION.COST = TRUE
 LOAN.COST = TRUE
-#DATA.FILES <- new.env()
-#assign('COMM', paste(DATA.ROOT, sep = '\\', 'benchMarkCOMM.csv'))
-#assign('SH50', paste(DATA.ROOT, sep = '\\', 'benchMarkSH50.csv'))
-#assign('CYB', paste(DATA.ROOT, sep = '\\', 'benchMarkCYB.csv'))
+REMOVE.NA = TRUE #in ts, if a date has na price, then remove it. or interpolate.
 
 findCovMat <- function(return_matrix) {
   meanv <- apply(return_matrix,2,mean)
@@ -84,7 +81,11 @@ load.all.prices <- function (label = 'all', root.path = DATA.ROOT) {
     }else {
       ts <- cbind(ts, tmp.xts)
       ts <- na.trim(ts)
-      ts <- na.approx(ts)
+      if(REMOVE.NA) {
+        ts <- na.omit(ts)
+      } else {
+        ts <- na.approx(ts)
+      }
     }
     #remove the surfix -- '*.csv'
     labs <- append(labs, substr(names[i], 1, (nchar(names[i])-4)))
@@ -794,13 +795,19 @@ AllocateRPAssetWeight <- function (end.date, lab='RPROOT', period='weeks') {
         ts <- tmp.ts
       } else {
         ts <- cbind(ts, tmp.ts)
+        ts <- na.trim(ts)
+        if(REMOVE.NA) {
+          ts <- na.omit(ts)
+        } else {
+          ts <- na.approx(ts)
+        }
       }
     }
     colnames(ts) <- labs
     #trim and interpolation NA data
-    ts <- na.trim(ts)
+    #ts <- na.trim(ts)
     #ts <- na.approx(ts)
-    ts <- na.omit(ts)
+    #ts <- na.omit(ts)
     ### use the sub portfolio ts matrix to construct the current level portfolio net value. 
     sub.pf <- load.sub.pf(lab)
     if(is.null(sub.pf)) {
@@ -978,6 +985,10 @@ CalcuPRIndex <- function(end.date, lever=2){
           volumn.change <- money.for.gap/asset.price
           print(paste('----', lab, 'is newly added in this time! weight gap :::', ref.w, '| money gap :::', money.for.gap, 
                       '| volumn change :::', volumn.change))
+          #log info
+          log.info <- list(date=date.obj, lab=lab, current_w=0, target_w=ref.w, 
+                           w_change=(ref.w), money=money.for.gap, volumn=volumn.change, comments='newly added')
+          LogTradingInfo(log.info)
           loan.rebalance <- loan.rebalance + money.for.gap
           #update volumn info
           alloc.vol.info <- rbind(alloc.vol.info, data.frame(rec, volumn=volumn.change))
@@ -992,6 +1003,10 @@ CalcuPRIndex <- function(end.date, lever=2){
             volumn.change <- money.for.gap/asset.price
             print(paste('----', lab, 'exceeds the allocation limit! weight gap :::', gap, '| money gap :::', money.for.gap, 
                         '| volumn change :::', volumn.change))
+            #log info
+            log.info <- list(date=date.obj, lab=lab, current_w=asset.w, target_w=ref.w, 
+                             w_change=gap, money=money.for.gap, volumn=volumn.change, comments='rebalance')
+            LogTradingInfo(log.info)
             # update the loan info. if gap is positive, then borrow loan,
             # if gap is negative, then return loan.
             loan.rebalance <- loan.rebalance + money.for.gap
@@ -1069,10 +1084,23 @@ CalcuPRIndex <- function(end.date, lever=2){
   }# end processing.
 }
 
+LogTradingInfo <- function (info.list, path=paste(OUTPUT.ROOT, 'log', sep='/'), log.file.name='rebalance.csv') {
+  log.file <- paste(path, log.file.name, sep = '/')
+  if(file.exists(log.file)) {
+    # append log info
+    write.table(info.list, log.file, row.names = FALSE, col.names = FALSE, sep=',',
+                append = TRUE)
+  } else {
+    #new csv log file
+    write.csv(info.list, log.file, row.names = FALSE)  
+  }
+  
+}
+
 ############## MAIN #####################
 #init run
-#2006-08-01 is the first day for our index. 
-#CalcuPRIndex('2006-08-01')
+#2017-01-03 is the first day for our index. 
+#CalcuPRIndex('2017-01-03')
 #later run
 ## 1st phase: end date = 2009-10-15
 #CalcuPRIndex('2009-10-15')
@@ -1110,6 +1138,23 @@ input.path <- paste(DATA.ROOT, 'back', sep = '/')
 #ConvertTSCurrency('ussp0510bond.usd', input.path)
 # GSCI.usd
 #ConvertTSCurrency('GSCI.usd', input.path)
+ConvertAssetsToCNY <- function() {
+  input.path <- paste(DATA.ROOT, 'back', sep = '/')
+  # DAX.eur
+  ConvertTSCurrency('DAX.eur', input.path)
+  # EUGov0710Bond.eur
+  ConvertTSCurrency('EUGov0710Bond.eur', input.path)
+  # AU0510YGovBond.aud
+  ConvertTSCurrency('AU0510YGovBond.aud', input.path)
+  # ASX200TR.aud
+  ConvertTSCurrency('ASX200TR.aud', input.path)
+  # SP500TR.usd
+  ConvertTSCurrency('SP500TR.usd', input.path)
+  # ussp0510bond.usd
+  ConvertTSCurrency('ussp0510bond.usd', input.path)
+  # GSCI.usd
+  ConvertTSCurrency('GSCI.usd', input.path)
+}
 
 RunWeeklyStats <- function(end.date) {
   #bond
