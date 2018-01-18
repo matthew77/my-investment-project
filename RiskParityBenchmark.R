@@ -1455,6 +1455,9 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
 #output <- exe.optim(rts$cov)
 #output.mtx <- as.matrix(output)
 #write.csv(output.mtx, 'E:\\nutstore\\my\\output\\magic_formula_weights\\w.csv')
+
+#combn(c('a','b','c'), 2)
+
 ############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
 # 1. edit cfg/structure.csv file, adding/deleting the assets
 # 2. in output/sub_netvalue, delete the related ts file.
