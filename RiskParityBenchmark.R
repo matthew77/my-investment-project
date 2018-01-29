@@ -1202,9 +1202,22 @@ RunWeeklyStats <- function(end.date) {
   #tmp.rpt <- GetAssetPriceChangeStats(label = NULL, end.date, ts=ts)
   #rpt <- rbind(rpt, tmp.rpt)
   #
+  # get cn-us 10 year rate spread
+  spread <- GetRateSpreadTs('cn10', 'us10')
+  tmp.rpt <- GetAssetPriceChangeStats('cn10-us10', spread, end.date, median.as.mean=TRUE, log.rt=FALSE, is.abs.change=TRUE)
+  rpt <- rbind(rpt, tmp.rpt)
+  #
   rpt.name <- paste('weekly',end.date, '.csv', sep = '')
   out.file <- paste(OUTPUT.ROOT, 'status_report', rpt.name, sep = '/')
   write.csv(rpt, out.file)
+}
+
+GetRateSpreadTs <- function(lab1, lab2, root.path = paste(DATA.ROOT, 'bond_yield', sep = '/')) {
+  ts <- load.all.prices(c(lab1, lab2), root.path = root.path)
+  spread <- ts[,lab1] - ts[,lab2]
+  colnames(spread) <- 'spread'
+  spread <- spread/100
+  spread
 }
 
 GetAssetPriceChangeStatsWithLab <- function(label, end.date, median.as.mean=TRUE, log.rt = TRUE,
