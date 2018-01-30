@@ -1203,6 +1203,7 @@ RunWeeklyStats <- function(end.date) {
   #rpt <- rbind(rpt, tmp.rpt)
   #
   # get cn-us 10 year rate spread
+  print('processing cn-us 10 year rate spread...')
   spread <- GetRateSpreadTs('cn10', 'us10')
   tmp.rpt <- GetAssetPriceChangeStats('cn10-us10', spread, end.date, median.as.mean=TRUE, log.rt=FALSE, is.abs.change=TRUE)
   rpt <- rbind(rpt, tmp.rpt)
