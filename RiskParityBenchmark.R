@@ -1475,3 +1475,8 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
 ############## INSTRUCTION: HOW TO ADD/REMOVE ASSETS IN RISK PARITY PORTFOLIO #####################
 # 1. edit cfg/structure.csv file, adding/deleting the assets
 # 2. in output/sub_netvalue, delete the related ts file.
+
+########################## risk parity weekly process ####################
+#ConvertAssetsToCNY()
+#RunWeeklyStats('2018-02-09')
+#CalcuPRIndex('2018-02-09')
