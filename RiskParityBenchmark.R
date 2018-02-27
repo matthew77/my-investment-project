@@ -1459,6 +1459,14 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
   price.change
 }
 
+################ Funds Filter tool ####################
+
+library(PerformanceAnalytics)
+
+SortFundsByIR <- function(available.funds, benchmark.path, data.path){
+  # return a data.frame with order, fund code, IR score
+  
+}
 ############## TEST ####################
 
 ############## The Magic Formula ####################
