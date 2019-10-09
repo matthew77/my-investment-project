@@ -1470,6 +1470,7 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
 
 # path <- 'C:\\nutstore\\my\\history data\\magicformula' # may need to be changed 
 #  ts <- load.all.prices(root.path = path)
+
 # get the latest N years of data
 # rts <- get.pre.n.years.rt(ts, '2019-10-08', n = 3)  # may need to be changed
 # output <- exe.optim(rts$cov)
