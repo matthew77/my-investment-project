@@ -1465,6 +1465,9 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
 ############## TEST ####################
 
 ############## The Magic Formula ####################
+# run python for cleaning the data
+# header should be: 日期,开盘,最高,最低,收盘,成交量,成交额
+
 #path <- 'E:\\nutstore\\my\\history data\\magicformula'
 #ts <- load.all.prices(root.path = path)
 # get the latest N years of data
