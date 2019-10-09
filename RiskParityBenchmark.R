@@ -1465,13 +1465,16 @@ GetPriceChange <- function(ts, end.date, period = 'week', n=1, is.abs.change = F
 ############## TEST ####################
 
 ############## The Magic Formula ####################
-#path <- 'E:\\nutstore\\my\\history data\\magicformula'
-#ts <- load.all.prices(root.path = path)
+# run python for cleaning the data
+# header should be: 日期,开盘,最高,最低,收盘,成交量,成交额
+
+# path <- 'C:\\nutstore\\my\\history data\\magicformula' # may need to be changed 
+#  ts <- load.all.prices(root.path = path)
 # get the latest N years of data
-#rts <- get.pre.n.years.rt(ts, '2017-12-19', n = 3)
-#output <- exe.optim(rts$cov)
-#output.mtx <- as.matrix(output)
-#write.csv(output.mtx, 'E:\\nutstore\\my\\output\\magic_formula_weights\\w.csv')
+# rts <- get.pre.n.years.rt(ts, '2019-10-08', n = 3)  # may need to be changed
+# output <- exe.optim(rts$cov)
+# output.mtx <- as.matrix(output)
+# write.csv(output.mtx, 'C:\\nutstore\\my\\output\\magic_formula_weights\\w.csv') # may need to be changed
 
 #combn(c('a','b','c'), 2)
 
